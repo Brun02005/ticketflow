@@ -87,7 +87,8 @@ const panels = [
     ),
     timeseries(
       'Errores 5xx por segundo',
-      [['sum by (service) (rate(http_server_request_duration_seconds_count{status_code=~"5.."}[1m]))', '{{service}}']],
+      // "or vector(0)": sin errores la serie no existe, y Grafana mostraría "No data" en lugar de 0.
+      [['sum(rate(http_server_request_duration_seconds_count{status_code=~"5.."}[1m])) or vector(0)', 'errores 5xx']],
       8,
       { unit: 'reqps', description: 'Tiene que estar en cero: los conflictos de negocio son 409, no 5xx.' },
     ),
@@ -104,7 +105,7 @@ const panels = [
     ),
     timeseries(
       'Rate limit del gateway (429)',
-      [['sum(rate(http_server_request_duration_seconds_count{service="api-gateway",status_code="429"}[1m]))', '429/s']],
+      [['sum(rate(http_server_request_duration_seconds_count{service="api-gateway",status_code="429"}[1m])) or vector(0)', '429/s']],
       12,
       { unit: 'reqps' },
     ),

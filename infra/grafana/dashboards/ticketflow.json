@@ -492,8 +492,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (service) (rate(http_server_request_duration_seconds_count{status_code=~\"5..\"}[1m]))",
-          "legendFormat": "{{service}}",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{status_code=~\"5..\"}[1m])) or vector(0)",
+          "legendFormat": "errores 5xx",
           "refId": "A"
         }
       ],
@@ -598,7 +598,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(http_server_request_duration_seconds_count{service=\"api-gateway\",status_code=\"429\"}[1m]))",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{service=\"api-gateway\",status_code=\"429\"}[1m])) or vector(0)",
           "legendFormat": "429/s",
           "refId": "A"
         }

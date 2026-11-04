@@ -6,6 +6,22 @@ El problema central es el mismo que enfrentan Ticketmaster o Passline: miles de 
 
 Todo corre localmente con Docker y **no requiere ningún servicio pago**.
 
+**Resultado de la prueba de carga:** 15.091 intentos de compra simultáneos sobre 100 asientos, **0 asientos vendidos dos veces**, 0 errores 5xx. Más detalle en [Prueba de carga](#prueba-de-carga-cero-sobreventa).
+
+![Dashboard de Grafana durante la prueba de carga](docs/img/grafana-dashboard.png)
+<sub>Grafana durante `npm run load`: ~330 requests/s. Casi todos los intentos chocan con asientos ya tomados (409, en amarillo) y no hay errores 5xx.</sub>
+
+<table>
+<tr>
+<td width="62%"><img src="docs/img/jaeger-saga-trace.png" alt="Traza de la saga de pago en Jaeger"></td>
+<td width="38%"><img src="docs/img/email-entradas.png" alt="Email con las entradas y sus QR firmados"></td>
+</tr>
+<tr>
+<td><sub>Una sola traza atraviesa 3 servicios: webhook de la pasarela → payments → outbox → RabbitMQ → orders → RabbitMQ → notifications.</sub></td>
+<td><sub>Email con una entrada por asiento, cada una con QR firmado con HMAC.</sub></td>
+</tr>
+</table>
+
 ## Arquitectura
 
 ```mermaid
