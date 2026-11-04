@@ -1,5 +1,7 @@
 import { withTransaction, type Pool, type Queryable } from './db'
+import { outboxPublishFailures, outboxPublished } from './metrics'
 import type { MessagePublisher } from './rabbit'
+import { SpanKind, captureTraceContext, extractTraceContext, withSpan } from './tracing'
 
 /**
  * Patrón Transactional Outbox.
@@ -22,10 +24,12 @@ export interface OutboxMessage {
 }
 
 export async function enqueueOutbox(db: Queryable, msg: OutboxMessage): Promise<void> {
-  await db.query(`INSERT INTO outbox (type, aggregate_id, payload) VALUES ($1, $2, $3)`, [
+  // Guardamos el contexto de la traza actual para que el mensaje la continúe (ver tracing.ts).
+  await db.query(`INSERT INTO outbox (type, aggregate_id, payload, headers) VALUES ($1, $2, $3, $4)`, [
     msg.type,
     msg.aggregateId,
     JSON.stringify(msg.payload),
+    JSON.stringify(captureTraceContext()),
   ])
 }
 
@@ -40,6 +44,7 @@ interface OutboxRow {
   type: string
   aggregate_id: string
   payload: unknown
+  headers: Record<string, string>
   created_at: Date
 }
 
@@ -74,7 +79,7 @@ export class OutboxRelay {
   async processBatch(): Promise<number> {
     return withTransaction(this.pool, async (tx) => {
       const { rows } = await tx.query<OutboxRow>(
-        `SELECT id, message_id, type, aggregate_id, payload, created_at
+        `SELECT id, message_id, type, aggregate_id, payload, headers, created_at
            FROM outbox
           WHERE published_at IS NULL
           ORDER BY id
@@ -86,16 +91,31 @@ export class OutboxRelay {
       let published = 0
       for (const row of rows) {
         try {
-          await this.publisher.publish({
-            messageId: row.message_id,
-            type: row.type,
-            aggregateId: row.aggregate_id,
-            occurredAt: row.created_at.toISOString(),
-            payload: row.payload,
-          })
+          // Span "publish" hijo de la request que originó el evento, aunque se publique después.
+          await withSpan(
+            `publish ${row.type}`,
+            {
+              kind: SpanKind.PRODUCER,
+              parent: extractTraceContext(row.headers),
+              attributes: { 'messaging.system': 'rabbitmq', 'messaging.message.id': row.message_id },
+            },
+            () =>
+              this.publisher.publish(
+                {
+                  messageId: row.message_id,
+                  type: row.type,
+                  aggregateId: row.aggregate_id,
+                  occurredAt: row.created_at.toISOString(),
+                  payload: row.payload,
+                },
+                captureTraceContext(),
+              ),
+          )
           await tx.query(`UPDATE outbox SET published_at = now() WHERE id = $1`, [row.id])
+          outboxPublished.inc({ type: row.type })
           published++
         } catch (err) {
+          outboxPublishFailures.inc()
           await tx.query(
             `UPDATE outbox SET attempts = attempts + 1, last_error = $2 WHERE id = $1`,
             [row.id, (err as Error).message],

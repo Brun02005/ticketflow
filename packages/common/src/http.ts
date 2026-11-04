@@ -1,7 +1,9 @@
 import Fastify, { type FastifyError } from 'fastify'
 import { Type, type TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
+import { trace } from '@opentelemetry/api'
 import { randomUUID } from 'node:crypto'
 import { AppError } from './errors'
+import { httpRequestDuration, setServiceLabel, startMetricsServer } from './metrics'
 
 export interface HttpAppOptions {
   serviceName: string
@@ -50,8 +52,31 @@ export function createHttpApp(opts: HttpAppOptions) {
   // Identidad del usuario; la completan los hooks de ./auth.
   app.decorateRequest('auth', null)
 
+  setServiceLabel(opts.serviceName)
+
+  app.addHook('onRequest', async (req) => {
+    // La instrumentación HTTP nombra el span solo con el método ("GET"); le agregamos
+    // la ruta (con parámetros, no la URL concreta) para que en Jaeger se pueda agrupar.
+    const route = req.routeOptions.url
+    if (route) {
+      const span = trace.getActiveSpan()
+      span?.updateName(`${req.method} ${route}`)
+      span?.setAttribute('http.route', route)
+      span?.setAttribute('ticketflow.request_id', req.id)
+    }
+  })
+
   app.addHook('onSend', async (req, reply) => {
     reply.header('x-request-id', req.id)
+  })
+
+  app.addHook('onResponse', async (req, reply) => {
+    const route = req.routeOptions.url ?? 'sin_ruta'
+    if (route.startsWith('/health')) return
+    httpRequestDuration.observe(
+      { method: req.method, route, status_code: String(reply.statusCode) },
+      reply.elapsedTime / 1000,
+    )
   })
 
   app.setErrorHandler((err: FastifyError, req, reply) => {
@@ -115,10 +140,17 @@ export type HttpApp = ReturnType<typeof createHttpApp>
  * hooks onClose (cerrar pool de DB, conexiones a colas, etc.).
  */
 export async function startServer(app: HttpApp, port: number, host = '0.0.0.0') {
+  // Métricas en un puerto interno aparte (ver metrics.ts).
+  const metricsPort = Number(process.env.METRICS_PORT ?? 9464)
+  const metricsServer = startMetricsServer(metricsPort)
+
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'apagando servidor')
     try {
       await app.close()
+      metricsServer.close()
+      // Envía los spans que quedaron en memoria antes de salir.
+      await globalThis.__otelShutdown?.()
       process.exit(0)
     } catch (err) {
       app.log.error({ err }, 'error durante el apagado')
@@ -128,4 +160,5 @@ export async function startServer(app: HttpApp, port: number, host = '0.0.0.0') 
   process.once('SIGINT', shutdown)
   process.once('SIGTERM', shutdown)
   await app.listen({ port, host })
+  app.log.info({ metricsPort }, 'métricas Prometheus en /metrics')
 }

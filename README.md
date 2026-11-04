@@ -175,9 +175,47 @@ Además reintenta los webhooks con backoff exponencial y, con `PSP_ERROR_RATE`, 
 - **Database-per-service:** cada servicio es dueño de su base y no hay foreign keys entre servicios.
 - Una única imagen Docker multi-stage para todos los servicios (`--build-arg SERVICE=...`).
 
+## Prueba de carga: cero sobreventa
+
+`npm run load` corre [k6](https://k6.io) dentro de Docker contra el sistema completo. Participan 200 usuarios virtuales y 40 compradores, que durante 40 segundos se pelean por **100 asientos**, pidiendo de 1 a 3 asientos al azar cada vez. La mitad de las reservas se paga, así que la saga completa también corre bajo carga.
+
+Al terminar, la prueba consulta el sistema y verifica que ningún asiento esté en dos órdenes activas y que el inventario coincida con las órdenes. Si no se cumple, la prueba falla (y el CI también).
+
+Resultado en una notebook:
+
+| | |
+|---|---|
+| Intentos de compra | **15.091** (~300/s) |
+| Reservas concretadas | 72 órdenes, los 100 asientos tomados |
+| Intentos rechazados por asiento ya tomado (409) | 15.019 (99,5%): la protección contra sobreventa trabajando |
+| **Asientos vendidos dos veces** | **0** |
+| Inventario vs. órdenes | 100 = 100 |
+| Errores 5xx | 0 |
+| Latencia p95 de la compra | 630 ms, con todos peleando por las mismas filas |
+| Sagas de pago completadas | 39 de 39, con 39 emails de entradas enviados y DLQ en 0 |
+
+## Observabilidad
+
+| Herramienta | Qué muestra |
+|---|---|
+| **Jaeger** (http://localhost:16686) | Trazas distribuidas con OpenTelemetry. Cada request se ve atravesando gateway → servicio → Postgres/Redis → **outbox → RabbitMQ → consumidores**, como una sola traza |
+| **Prometheus** (http://localhost:9090) | Métricas de los 7 servicios y de RabbitMQ (incluida la profundidad de cada DLQ) |
+| **Grafana** (http://localhost:3100) | Dashboard provisionado: asientos vendidos y reservados, facturación, órdenes y pagos por estado, requests/s, p95, 5xx, compras vs. 409, 429, DLQ, outbox pendiente, cobros en duda, notificaciones fallidas, event loop lag |
+
+Decisiones:
+- **La traza atraviesa el outbox.** El outbox corta la traza naturalmente: el relay publica más tarde, fuera de la request.
+  - Al encolar se guarda el `traceparent` (W3C Trace Context) junto al mensaje.
+  - El relay lo usa como padre del span `publish` y lo manda en los headers AMQP; el consumidor continúa la misma traza.
+  - Un test lo verifica de punta a punta contra RabbitMQ real.
+- **Instrumentación automática** de http, pg, ioredis, undici y pino, cargada con `node --import` antes que la app. El hook de ESM se registra en modo selectivo: envolver todos los módulos rompía TypeBox, y lo detectamos al levantar los contenedores.
+- **Métricas de negocio calculadas desde la base en cada scrape** (asientos por estado, facturación, pagos). Siempre coinciden con la realidad, aunque un proceso se reinicie.
+- Las métricas se exponen en un **puerto interno** (9464): Prometheus las lee desde la red de Docker y no quedan publicadas a través del gateway.
+- **La métrica de DLQ ya encontró un problema real:** los tests publicaban en el mismo broker que el sistema en ejecución y sus mensajes de prueba terminaban en las DLQ. Ahora los tests usan un vhost de RabbitMQ propio (`ticketflow_test`).
+- El dashboard está definido como código (`infra/grafana/build-dashboard.mjs`).
+
 ## Stack
 
-Node.js 24 · TypeScript · Fastify 5 · PostgreSQL 17 · Redis · RabbitMQ · TypeBox (validación + OpenAPI) · jose (JWT) · Vitest · Docker · GitHub Actions
+Node.js 24 · TypeScript · Fastify 5 · PostgreSQL 17 · Redis · RabbitMQ · TypeBox (validación + OpenAPI) · jose (JWT) · OpenTelemetry · Jaeger · Prometheus · Grafana · k6 · Vitest · Docker · GitHub Actions
 
 ## Cómo correrlo
 
@@ -198,8 +236,9 @@ npm run dev
 **Modo producción** (todo en Docker; solo el gateway queda expuesto):
 
 ```bash
-npm run app:up
+npm run app:up       # todos los servicios + Jaeger, Prometheus y Grafana
 npm run smoke        # prueba de punta a punta a través del gateway
+npm run load         # prueba de carga con k6 (verifica cero sobreventa)
 ```
 
 | URL | Qué es |
@@ -213,10 +252,13 @@ npm run smoke        # prueba de punta a punta a través del gateway
 | http://localhost:3005/docs | Swagger de notifications-worker (modo desarrollo) |
 | http://localhost:15672 | Panel de RabbitMQ (guest / guest): exchange `ticketflow.events` |
 | http://localhost:8025 | Bandeja de Mailpit: acá llegan los emails (bienvenida, entradas con QR, rechazos, reembolsos) |
+| http://localhost:3100 | Grafana: dashboard "TicketFlow · Visión general" (modo producción) |
+| http://localhost:16686 | Jaeger: trazas distribuidas (modo producción) |
+| http://localhost:9090 | Prometheus (modo producción) |
 
 ## Tests
 
-143 tests de integración contra Postgres, Redis, RabbitMQ y SMTP (Mailpit) reales, sin mocks de la infraestructura.
+146 tests de integración contra Postgres, Redis, RabbitMQ y SMTP (Mailpit) reales, sin mocks de la infraestructura. Los tests de mensajería usan un vhost de RabbitMQ aislado.
 - **Concurrencia:** compras simultáneas del mismo asiento, pedidos superpuestos, doble click en pagar, refresh tokens simultáneos, ediciones simultáneas y varias réplicas del relay.
 - **Mensajería:** reintentos y DLQ contra el broker real.
 - **Pagos:** los tests levantan la pasarela simulada y payments-service en puertos reales, así los webhooks firmados viajan por HTTP de verdad.
@@ -235,4 +277,4 @@ El CI corre además el sistema completo en Docker y ejecuta el smoke test.
 - [x] **Fase 3:** orders-service: inventario por eventos, reservas con vencimiento, cero sobreventa bajo concurrencia, `Idempotency-Key`, consumidor idempotente con reintentos y DLQ
 - [x] **Fase 4:** payments-service, pasarela simulada y saga de compra con compensación (reembolso de pagos tardíos y de eventos cancelados), conciliación de webhooks perdidos
 - [x] **Fase 5:** notifications-worker: emails transaccionales, entradas con QR firmado, reintentos persistentes con backoff y lease, `user.registered` desde auth
-- [ ] **Fase 6:** observabilidad (OpenTelemetry + Jaeger, Prometheus + Grafana) y test de carga con k6 que demuestre que no hay sobreventa
+- [x] **Fase 6:** observabilidad (trazas OpenTelemetry que atraviesan el outbox, Prometheus, dashboard de Grafana) y prueba de carga con k6 en el CI que verifica cero sobreventa

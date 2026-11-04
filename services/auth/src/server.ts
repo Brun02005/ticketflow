@@ -3,6 +3,7 @@ import { OutboxRelay, RabbitPublisher, createPool, runMigrations, startServer } 
 import { buildApp } from './app'
 import { loadConfig } from './config'
 import { loadSigningKeys } from './keys'
+import { registerBusinessMetrics } from './metrics'
 
 const config = loadConfig()
 const pool = createPool(config.DATABASE_URL)
@@ -16,6 +17,7 @@ if (!config.JWT_PRIVATE_KEY) {
 }
 
 await runMigrations(pool, fileURLToPath(new URL('../migrations', import.meta.url)), app.log)
+registerBusinessMetrics(pool)
 
 const publisher = await RabbitPublisher.connect(config.RABBITMQ_URL, app.log)
 const relay = new OutboxRelay(pool, publisher, app.log)

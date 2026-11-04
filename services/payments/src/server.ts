@@ -12,6 +12,7 @@ import {
 } from '@ticketflow/common'
 import { buildApp } from './app'
 import { loadConfig } from './config'
+import { registerBusinessMetrics } from './metrics'
 import { dispatchRefunds, reconcileCharges } from './reconciler'
 import { handleOrderMessage } from './saga'
 
@@ -25,6 +26,7 @@ const verifyToken = createTokenVerifier({
 
 const app = await buildApp(config, { pool, verifyToken })
 await runMigrations(pool, fileURLToPath(new URL('../migrations', import.meta.url)), app.log)
+registerBusinessMetrics(pool)
 
 const consumer = await RabbitConsumer.start(
   config.RABBITMQ_URL,

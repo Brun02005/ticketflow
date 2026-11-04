@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # Cada servicio expone /metrics en el puerto interno 9464 (no pasa por el gateway).
+  - job_name: ticketflow
+    static_configs:
+      - targets:
+          - auth-service:9464
+          - events-service:9464
+          - orders-service:9464
+          - payments-service:9464
+          - notifications-worker:9464
+          - api-gateway:9464
+          - psp-simulator:9464
+
+  # Plugin oficial de RabbitMQ. /metrics/per-object da el detalle por cola (para ver las DLQ).
+  - job_name: rabbitmq
+    metrics_path: /metrics/per-object
+    static_configs:
+      - targets: ['rabbitmq:15692']

@@ -16,7 +16,7 @@ jobs:
           cache: npm
 
       - name: Levantar infraestructura (mismo compose que en local)
-        run: docker compose up -d --wait postgres redis rabbitmq
+        run: docker compose up -d --wait postgres redis rabbitmq mailpit
 
       - run: npm ci
       - run: npm run typecheck
@@ -32,13 +32,20 @@ jobs:
         with:
           node-version: 24
 
-      - name: Generar clave JWT y levantar todo el sistema en Docker
+      - name: Generar secretos y levantar todo el sistema en Docker
         run: |
           node scripts/setup.mjs
           docker compose --profile app up -d --build --wait
 
       - name: Smoke test de punta a punta a través del gateway
         run: node scripts/smoke.mjs
+
+      - name: Prueba de carga corta (k6) - falla si hay sobreventa o errores 5xx
+        run: node scripts/load/run.mjs
+        env:
+          PEAK_VUS: '60'
+          DURATION: '15s'
+          BUYERS: '20'
 
       - name: Logs si algo falló
         if: failure()

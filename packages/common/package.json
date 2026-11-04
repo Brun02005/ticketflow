@@ -5,19 +5,26 @@
   "type": "module",
   "description": "Código compartido entre servicios: config, logger, errores, base de datos, migraciones",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./instrumentation": "./src/instrumentation.ts"
   },
   "dependencies": {
     "@fastify/helmet": "^13.2.0",
     "@fastify/swagger": "^9.9.3",
     "@fastify/swagger-ui": "^6.1.3",
     "@fastify/type-provider-typebox": "^6.3.0",
+    "@opentelemetry/api": "^1.10.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.82.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.300.0",
+    "@opentelemetry/sdk-node": "^0.300.0",
     "amqplib": "^2.2.1",
     "fastify": "^5.12.8",
+    "import-in-the-middle": "^3.5.3",
     "ioredis": "^6.0.0",
     "jose": "^6.2.15",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
+    "prom-client": "^15.1.3",
     "typebox": "^1.4.4"
   }
 }

@@ -1,5 +1,10 @@
 name: ticketflow
 
+# Variables comunes de OpenTelemetry: cada servicio exporta sus trazas a Jaeger por OTLP.
+x-otel: &otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+  OTEL_TRACES_SAMPLER: parentbased_always_on
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -53,6 +58,8 @@ services:
     profiles: ["app"]
     build: { context: ., args: { SERVICE: auth } }
     environment:
+      <<: *otel
+      OTEL_SERVICE_NAME: auth-service
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/auth
@@ -60,6 +67,7 @@ services:
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-} # obligatoria: generala con npm run setup
       # Solo el gateway le habla: confiamos en su X-Forwarded-For para el rate limit de login.
       TRUST_PROXY: "true"
+      LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
     healthcheck: &app-healthcheck
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$$PORT/health/ready || exit 1"]
       interval: 5s
@@ -73,6 +81,8 @@ services:
     profiles: ["app"]
     build: { context: ., args: { SERVICE: events } }
     environment:
+      <<: *otel
+      OTEL_SERVICE_NAME: events-service
       NODE_ENV: production
       PORT: 3002
       DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/events
@@ -89,6 +99,8 @@ services:
     profiles: ["app"]
     build: { context: ., args: { SERVICE: orders } }
     environment:
+      <<: *otel
+      OTEL_SERVICE_NAME: orders-service
       NODE_ENV: production
       PORT: 3003
       DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/orders
@@ -105,6 +117,8 @@ services:
     profiles: ["app"]
     build: { context: ., args: { SERVICE: payments } }
     environment:
+      <<: *otel
+      OTEL_SERVICE_NAME: payments-service
       NODE_ENV: production
       PORT: 3004
       DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/payments
@@ -128,6 +142,8 @@ services:
     profiles: ["app"]
     build: { context: ., args: { SERVICE: psp } }
     environment:
+      <<: *otel
+      OTEL_SERVICE_NAME: psp-simulator
       NODE_ENV: production
       PORT: 4000
       PSP_API_KEY: ${PSP_API_KEY:-sk_test_ticketflow}
@@ -144,6 +160,8 @@ services:
     profiles: ["app"]
     build: { context: ., args: { SERVICE: notifications } }
     environment:
+      <<: *otel
+      OTEL_SERVICE_NAME: notifications-worker
       NODE_ENV: production
       PORT: 3005
       DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/notifications
@@ -163,6 +181,8 @@ services:
     profiles: ["app"]
     build: { context: ., args: { SERVICE: gateway } }
     environment:
+      <<: *otel
+      OTEL_SERVICE_NAME: api-gateway
       NODE_ENV: production
       PORT: 3000
       REDIS_URL: redis://redis:6379/0
@@ -171,6 +191,7 @@ services:
       ORDERS_SERVICE_URL: http://orders-service:3003
       PAYMENTS_SERVICE_URL: http://payments-service:3004
       NOTIFICATIONS_SERVICE_URL: http://notifications-worker:3005
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
     ports: ["3000:3000"]
     healthcheck: *app-healthcheck
     depends_on:
@@ -180,6 +201,41 @@ services:
       payments-service: { condition: service_healthy }
       notifications-worker: { condition: service_healthy }
       psp-simulator: { condition: service_healthy }
+
+  # ── Observabilidad ──────────────────────────────────────────────
+  jaeger:
+    profiles: ["app"]
+    image: jaegertracing/jaeger:2.21.0
+    ports:
+      - "16686:16686" # UI de trazas: http://localhost:16686
+    # OTLP (4317 gRPC / 4318 HTTP) queda solo en la red interna.
+
+  prometheus:
+    profiles: ["app"]
+    image: prom/prometheus:v3.13.5
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090" # http://localhost:9090
+
+  grafana:
+    profiles: ["app"]
+    image: grafana/grafana:13.2.5
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/ticketflow.json
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3100:3000" # http://localhost:3100 (admin / admin para editar)
+    depends_on:
+      - prometheus
+      - jaeger
 
 volumes:
   pgdata:

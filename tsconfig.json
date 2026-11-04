@@ -15,5 +15,5 @@
     "verbatimModuleSyntax": true,
     "noEmit": true
   },
-  "include": ["packages/*/src", "services/*/src", "services/*/test", "vitest.config.ts"]
+  "include": ["packages/*/src", "services/*/src", "services/*/test", "scripts/test", "vitest.config.ts"]
 }

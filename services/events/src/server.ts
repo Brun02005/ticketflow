@@ -11,6 +11,7 @@ import {
 } from '@ticketflow/common'
 import { buildApp } from './app'
 import { loadConfig } from './config'
+import { registerBusinessMetrics } from './metrics'
 
 const config = loadConfig()
 const pool = createPool(config.DATABASE_URL)
@@ -25,6 +26,7 @@ const app = await buildApp(config, { pool, redis, verifyToken })
 redis.on('error', (err) => app.log.warn({ err: err.message }, 'error de Redis'))
 
 await runMigrations(pool, fileURLToPath(new URL('../migrations', import.meta.url)), app.log)
+registerBusinessMetrics(pool)
 
 // El relay del outbox corre en el mismo proceso. Con SKIP LOCKED se puede
 // escalar a varias réplicas, o moverlo a un worker separado sin cambiar código.

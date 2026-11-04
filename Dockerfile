@@ -31,4 +31,5 @@ COPY --from=build /app/services/${SERVICE}/migrations services/${SERVICE}/migrat
 
 USER node
 WORKDIR /app/services/${SERVICE}
-CMD ["node", "dist/server.js"]
+# --import carga OpenTelemetry antes que la app (solo se activa si hay OTEL_EXPORTER_OTLP_ENDPOINT).
+CMD ["node", "--import", "./dist/instrumentation.js", "dist/server.js"]

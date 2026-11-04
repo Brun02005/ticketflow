@@ -24,6 +24,8 @@
     "dev:gateway": "npm run dev -w @ticketflow/api-gateway",
     "app:up": "docker compose --profile app up -d --build --wait",
     "smoke": "node scripts/smoke.mjs",
+    "load": "node scripts/load/run.mjs",
+    "dashboard:build": "node infra/grafana/build-dashboard.mjs",
     "migrate": "npm run migrate --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -31,6 +33,9 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@opentelemetry/context-async-hooks": "^3.0.0",
+    "@opentelemetry/core": "^3.0.0",
+    "@opentelemetry/sdk-trace": "^3.0.0",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",

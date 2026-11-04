@@ -5,6 +5,8 @@ import {
   type ConsumeMessage,
   type RecoveringChannelModel,
 } from 'amqplib'
+import { messagesProcessed } from './metrics'
+import { SpanKind, extractTraceContext, withSpan, type TraceCarrier } from './tracing'
 
 /** Exchange de tipo topic donde se publican todos los eventos de dominio. */
 export const EVENTS_EXCHANGE = 'ticketflow.events'
@@ -23,7 +25,8 @@ export interface DomainEvent<T = unknown> {
 }
 
 export interface MessagePublisher {
-  publish(event: DomainEvent): Promise<void>
+  /** `headers`: contexto de la traza (traceparent) que viaja con el mensaje. */
+  publish(event: DomainEvent, headers?: TraceCarrier): Promise<void>
 }
 
 interface Logger {
@@ -79,7 +82,7 @@ export class RabbitPublisher implements MessagePublisher {
     while (!this.channel) await new Promise((r) => setTimeout(r, 10))
   }
 
-  async publish(event: DomainEvent): Promise<void> {
+  async publish(event: DomainEvent, headers: TraceCarrier = {}): Promise<void> {
     const channel = this.channel
     if (!channel) throw new Error('RabbitMQ no disponible')
 
@@ -94,6 +97,7 @@ export class RabbitPublisher implements MessagePublisher {
           contentType: 'application/json',
           persistent: true,
           timestamp: Math.floor(Date.parse(event.occurredAt) / 1000),
+          headers,
         },
         (err) => (err ? reject(err) : resolve()),
       )
@@ -199,20 +203,33 @@ export class RabbitConsumer {
         if (!event.messageId || !event.type) throw new PoisonMessageError('mensaje sin messageId o type')
       } catch (err) {
         logger.error({ err: (err as Error).message, queue }, 'mensaje ilegible, se envía a la DLQ')
+        messagesProcessed.inc({ queue, type: 'unknown', outcome: 'dead_letter' })
         return toDeadLetter(channel, msg)
       }
 
       try {
-        await handler(event)
+        // El procesamiento continúa la traza de quien originó el mensaje (ver tracing.ts).
+        await withSpan(
+          `process ${event.type}`,
+          {
+            kind: SpanKind.CONSUMER,
+            parent: extractTraceContext(msg.properties.headers),
+            attributes: { 'messaging.system': 'rabbitmq', 'messaging.destination.name': queue, 'messaging.message.id': event.messageId },
+          },
+          () => handler(event),
+        )
         channel.ack(msg)
+        messagesProcessed.inc({ queue, type: event.type, outcome: 'ok' })
       } catch (err) {
         const retries = Number(msg.properties.headers?.[RETRY_HEADER] ?? 0)
         const context = { err: (err as Error).message, messageId: event.messageId, type: event.type, retries }
         if (err instanceof PoisonMessageError || retries >= maxRetries) {
           logger.error(context, 'mensaje descartado a la DLQ')
+          messagesProcessed.inc({ queue, type: event.type, outcome: 'dead_letter' })
           return toDeadLetter(channel, msg)
         }
         logger.warn(context, 'falló el procesamiento, se reintenta más tarde')
+        messagesProcessed.inc({ queue, type: event.type, outcome: 'retry' })
         await scheduleRetry(channel, msg, retries + 1).catch((retryErr) => {
           // Si ni siquiera se pudo reenviar, lo devolvemos a la cola tal cual.
           logger.warn({ err: (retryErr as Error).message }, 'no se pudo agendar el reintento')

@@ -12,6 +12,7 @@ import {
 } from '@ticketflow/common'
 import { buildApp } from './app'
 import { loadConfig } from './config'
+import { registerBusinessMetrics } from './metrics'
 import { expireOrders, purgeIdempotencyKeys } from './expirer'
 import { handleDomainEvent } from './projection'
 
@@ -25,6 +26,7 @@ const verifyToken = createTokenVerifier({
 
 const app = await buildApp(config, { pool, verifyToken })
 await runMigrations(pool, fileURLToPath(new URL('../migrations', import.meta.url)), app.log)
+registerBusinessMetrics(pool)
 
 // Un mismo proceso corre la API y tres trabajos en segundo plano. Todos son
 // seguros con varias réplicas, así que se podrían separar en workers propios.
