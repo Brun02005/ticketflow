@@ -6,7 +6,7 @@
 // 2. Corre scripts/load/oversell.js contra el gateway, desde la red de Docker.
 // 3. Restaura los límites normales, aunque la prueba falle.
 //
-// Variables opcionales: BUYERS, ROWS, PEAK_VUS, DURATION (se pasan a k6).
+// Variables opcionales: BUYERS, ROWS, PEAK_VUS, DURATION, LATENCY_P95_MS (se pasan a k6).
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -29,7 +29,7 @@ compose(relaxed, 'up', '-d', '--wait', '--no-deps', 'auth-service', 'api-gateway
 
 let status = 1
 try {
-  const passthrough = ['BUYERS', 'ROWS', 'PEAK_VUS', 'DURATION'].flatMap((name) =>
+  const passthrough = ['BUYERS', 'ROWS', 'PEAK_VUS', 'DURATION', 'LATENCY_P95_MS'].flatMap((name) =>
     process.env[name] ? ['-e', `${name}=${process.env[name]}`] : [],
   )
   const k6 = spawnSync(

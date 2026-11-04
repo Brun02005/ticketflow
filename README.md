@@ -218,6 +218,10 @@ Resultado en una notebook:
 | Latencia p95 de la compra                       | 630 ms, con todos peleando por las mismas filas            |
 | Sagas de pago completadas                       | 39 de 39, con 39 emails de entradas enviados y DLQ en 0    |
 
+La sobreventa y los errores 5xx son umbrales fijos: si aparece uno solo, la prueba falla.
+
+La latencia, en cambio, varía entre corridas porque en una notebook el generador de carga y los 14 contenedores comparten el CPU: en distintas corridas la p95 dio entre ~450 ms y ~1 s. Por eso su umbral es configurable (`LATENCY_P95_MS`, 1500 ms por defecto).
+
 ## Observabilidad
 
 | Herramienta                            | Qué muestra                                                                                                                                                                                                                 |

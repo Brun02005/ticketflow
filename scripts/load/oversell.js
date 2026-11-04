@@ -4,7 +4,8 @@
 // errores 5xx y la latencia se mantiene acotada.
 //
 // Uso (corre k6 dentro de Docker, no hace falta instalarlo): npm run load
-// Variables: BASE_URL, BUYERS (usuarios distintos), SEATS (filas x 10), PEAK_VUS, DURATION
+// Variables: BASE_URL, BUYERS (usuarios distintos), ROWS (filas de 10 asientos), PEAK_VUS, DURATION,
+// LATENCY_P95_MS (umbral de latencia; por defecto 1500 ms)
 
 import { check, sleep } from 'k6'
 import http from 'k6/http'
@@ -16,6 +17,10 @@ const ROWS = Number(__ENV.ROWS || 10)
 const SEATS_PER_ROW = 10
 const PEAK_VUS = Number(__ENV.PEAK_VUS || 200)
 const DURATION = __ENV.DURATION || '30s'
+// En una notebook el generador de carga y los 14 contenedores comparten el CPU,
+// así que la latencia varía entre corridas. El umbral es configurable; los que
+// no se negocian son los de corrección (sobreventa y 5xx).
+const LATENCY_P95_MS = Number(__ENV.LATENCY_P95_MS || 1500)
 
 const reservations = new Counter('reservas_creadas')
 const seatTaken = new Counter('asiento_ya_tomado')
@@ -40,7 +45,7 @@ export const options = {
   thresholds: {
     asientos_sobrevendidos: ['count==0'], // el objetivo central
     errores_5xx: ['count==0'],
-    latencia_compra: ['p(95)<1000'],
+    latencia_compra: [`p(95)<${LATENCY_P95_MS}`],
     checks: ['rate>0.99'],
   },
 }
@@ -95,7 +100,11 @@ export function setup() {
   // orders arma el inventario de forma asincrónica (RabbitMQ): esperamos que esté listo.
   let ready = false
   for (let i = 0; i < 60 && !ready; i++) {
-    ready = http.get(`${BASE_URL}/availability/${event.id}`).status === 200
+    // 404 = orders todavía no armó el inventario: es esperado mientras se espera.
+    const availability = http.get(`${BASE_URL}/availability/${event.id}`, {
+      responseCallback: http.expectedStatuses(200, 404),
+    })
+    ready = availability.status === 200
     if (!ready) sleep(0.5)
   }
   // Si el setup no quedó bien, la prueba no tiene sentido: mejor fallar fuerte.
