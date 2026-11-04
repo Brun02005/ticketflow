@@ -1,6 +1,6 @@
-import { enqueueOutbox, withTransaction, type Pool, type Queryable } from '@ticketflow/common'
-import { PaymentEvents, applyChargeResult, setPaymentStatus } from './payments'
-import { PspError, type PspClient } from './psp-client'
+import { enqueueOutbox, type Pool, type Queryable, withTransaction } from '@ticketflow/common'
+import { applyChargeResult, PaymentEvents, setPaymentStatus } from './payments'
+import { type PspCharge, type PspClient, PspError } from './psp-client'
 
 interface Logger {
   info(obj: object, msg?: string): void
@@ -24,7 +24,7 @@ export async function reconcileCharges(pool: Pool, psp: PspClient, afterSeconds:
 
   let resolved = 0
   for (const charge of rows) {
-    let found
+    let found: PspCharge | undefined
     try {
       ;[found] = await psp.findCharges(charge.id)
     } catch (err) {
@@ -88,7 +88,10 @@ export async function dispatchRefunds(
       logger.info({ paymentId: payment.id }, 'reembolso solicitado a la pasarela')
     } catch (err) {
       if (err instanceof PspError && err.code === 'CHARGE_ALREADY_REFUNDED') continue
-      logger.error({ paymentId: payment.id, err: (err as Error).message }, 'falló el pedido de reembolso, se reintentará')
+      logger.error(
+        { paymentId: payment.id, err: (err as Error).message },
+        'falló el pedido de reembolso, se reintentará',
+      )
     }
   }
   return rows.length
@@ -113,7 +116,7 @@ export async function applyRefundSucceeded(db: Queryable, chargeReference: strin
     [chargeReference],
   )
   const payment = rows[0]
-  if (!payment || payment.status !== 'refund_pending') {
+  if (payment?.status !== 'refund_pending') {
     if (!payment) logger.warn({ chargeReference }, 'reembolso de un cobro desconocido')
     return
   }

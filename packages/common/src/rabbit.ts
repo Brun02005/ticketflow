@@ -1,12 +1,12 @@
 import {
-  connect,
   type ChannelModel,
   type ConfirmChannel,
   type ConsumeMessage,
+  connect,
   type RecoveringChannelModel,
 } from 'amqplib'
 import { messagesProcessed } from './metrics'
-import { SpanKind, extractTraceContext, withSpan, type TraceCarrier } from './tracing'
+import { extractTraceContext, SpanKind, type TraceCarrier, withSpan } from './tracing'
 
 /** Exchange de tipo topic donde se publican todos los eventos de dominio. */
 export const EVENTS_EXCHANGE = 'ticketflow.events'
@@ -214,7 +214,11 @@ export class RabbitConsumer {
           {
             kind: SpanKind.CONSUMER,
             parent: extractTraceContext(msg.properties.headers),
-            attributes: { 'messaging.system': 'rabbitmq', 'messaging.destination.name': queue, 'messaging.message.id': event.messageId },
+            attributes: {
+              'messaging.system': 'rabbitmq',
+              'messaging.destination.name': queue,
+              'messaging.message.id': event.messageId,
+            },
           },
           () => handler(event),
         )

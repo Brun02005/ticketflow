@@ -1,4 +1,4 @@
-import { Type, requireAuth, type FastifyPluginAsyncTypebox, type TokenVerifier } from '@ticketflow/common'
+import { type FastifyPluginAsyncTypebox, requireAuth, type TokenVerifier, Type } from '@ticketflow/common'
 import type { OrdersService } from './service'
 
 const ErrorRef = { $ref: 'ErrorResponse#' }

@@ -34,7 +34,19 @@ try {
   )
   const k6 = spawnSync(
     'docker',
-    ['run', '--rm', '-i', '--network', 'ticketflow_default', '-e', 'BASE_URL=http://api-gateway:3000', ...passthrough, K6_IMAGE, 'run', '-'],
+    [
+      'run',
+      '--rm',
+      '-i',
+      '--network',
+      'ticketflow_default',
+      '-e',
+      'BASE_URL=http://api-gateway:3000',
+      ...passthrough,
+      K6_IMAGE,
+      'run',
+      '-',
+    ],
     { input: readFileSync(new URL('./oversell.js', import.meta.url)), stdio: ['pipe', 'inherit', 'inherit'] },
   )
   status = k6.status ?? 1

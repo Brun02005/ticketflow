@@ -1,7 +1,7 @@
 import type { Pool } from '@ticketflow/common'
 import type { NotificationKind } from './handlers'
 import type { Mailer } from './mailer'
-import { MissingDataError, renderEmail, type EventInfo } from './templates'
+import { type EventInfo, MissingDataError, renderEmail } from './templates'
 
 export interface DispatchOptions {
   maxAttempts: number
@@ -78,13 +78,18 @@ export async function dispatchDue(pool: Pool, mailer: Mailer, options: DispatchO
         { timezone: options.timezone, ticketSecret: options.ticketSecret },
       )
       await mailer.send({ ...email, to: users[0].email, messageId: `<${n.id}@ticketflow.test>` })
-      await pool.query(`UPDATE notifications SET status = 'sent', sent_at = now(), last_error = NULL WHERE id = $1`, [n.id])
+      await pool.query(`UPDATE notifications SET status = 'sent', sent_at = now(), last_error = NULL WHERE id = $1`, [
+        n.id,
+      ])
       result.sent++
     } catch (err) {
       const message = (err as Error).message
       if (n.attempts >= options.maxAttempts) {
         await pool.query(`UPDATE notifications SET status = 'failed', last_error = $2 WHERE id = $1`, [n.id, message])
-        logger.error({ notificationId: n.id, kind: n.kind, attempts: n.attempts, err: message }, 'notificación descartada')
+        logger.error(
+          { notificationId: n.id, kind: n.kind, attempts: n.attempts, err: message },
+          'notificación descartada',
+        )
         result.failed++
       } else {
         const delay = backoffSeconds(n.attempts, options.retryBaseSeconds)
@@ -92,7 +97,10 @@ export async function dispatchDue(pool: Pool, mailer: Mailer, options: DispatchO
           `UPDATE notifications SET next_attempt_at = now() + make_interval(secs => $2), last_error = $3 WHERE id = $1`,
           [n.id, delay, message],
         )
-        logger.warn({ notificationId: n.id, kind: n.kind, attempt: n.attempts, retryIn: delay, err: message }, 'envío fallido, se reintenta')
+        logger.warn(
+          { notificationId: n.id, kind: n.kind, attempt: n.attempts, retryIn: delay, err: message },
+          'envío fallido, se reintenta',
+        )
         result.retried++
       }
     }

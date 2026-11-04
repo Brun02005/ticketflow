@@ -1,13 +1,13 @@
 import {
-  PoisonMessageError,
-  Type,
-  Value,
-  processOnce,
   type DomainEvent,
+  PoisonMessageError,
   type Pool,
   type PoolClient,
+  processOnce,
   type Static,
   type TSchema,
+  Type,
+  Value,
 } from '@ticketflow/common'
 import { findPaymentByOrder, setPaymentStatus } from './payments'
 
@@ -31,7 +31,9 @@ const OrderClosed = Type.Object({ orderId: Type.String() })
 
 function parse<T extends TSchema>(schema: T, event: DomainEvent): Static<T> {
   if (!Value.Check(schema, event.payload)) {
-    throw new PoisonMessageError(`${event.type} con payload inválido: ${Value.Errors(schema, event.payload)[0]?.message}`)
+    throw new PoisonMessageError(
+      `${event.type} con payload inválido: ${Value.Errors(schema, event.payload)[0]?.message}`,
+    )
   }
   return event.payload as Static<T>
 }

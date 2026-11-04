@@ -1,14 +1,14 @@
 import {
-  PoisonMessageError,
-  Type,
-  Value,
-  enqueueOutbox,
-  processOnce,
   type DomainEvent,
+  enqueueOutbox,
+  PoisonMessageError,
   type Pool,
   type PoolClient,
+  processOnce,
   type Static,
   type TSchema,
+  Type,
+  Value,
 } from '@ticketflow/common'
 import { orderRepository, releaseSeatsOf } from './repository'
 
@@ -109,10 +109,13 @@ async function applyEventPublished(tx: PoolClient, e: Static<typeof EventPublish
   if (rowCount === 0) return
 
   for (const [position, s] of e.sections.entries()) {
-    await tx.query(
-      `INSERT INTO sections (id, event_id, name, price_cents, position) VALUES ($1, $2, $3, $4, $5)`,
-      [s.id, e.id, s.name, s.priceCents, position],
-    )
+    await tx.query(`INSERT INTO sections (id, event_id, name, price_cents, position) VALUES ($1, $2, $3, $4, $5)`, [
+      s.id,
+      e.id,
+      s.name,
+      s.priceCents,
+      position,
+    ])
     // Todos los asientos del sector en un solo INSERT: filas × asientos por fila.
     await tx.query(
       `INSERT INTO seats (event_id, section_id, row, number)
@@ -205,7 +208,11 @@ async function applyPaymentSucceeded(
     // Venció pero el job todavía no pasó: la vencemos ahora, en la misma transacción.
     await orderRepository.setStatus(tx, orderId, 'expired')
     await releaseSeatsOf(tx, [orderId])
-    await enqueueOutbox(tx, { type: OrderEvents.expired, aggregateId: orderId, payload: { orderId, userId: order.userId, eventId: order.eventId } })
+    await enqueueOutbox(tx, {
+      type: OrderEvents.expired,
+      aggregateId: orderId,
+      payload: { orderId, userId: order.userId, eventId: order.eventId },
+    })
   }
   logger.warn({ orderId, paymentId, status: order.status }, 'pago tardío rechazado, se reembolsará')
   await enqueueOutbox(tx, {

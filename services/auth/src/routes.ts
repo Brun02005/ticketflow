@@ -1,6 +1,6 @@
-import { Type, requireAuth, type FastifyPluginAsyncTypebox } from '@ticketflow/common'
-import type { TokenIssuer } from './tokens'
+import { type FastifyPluginAsyncTypebox, requireAuth, Type } from '@ticketflow/common'
 import type { AuthService } from './service'
+import type { TokenIssuer } from './tokens'
 
 const RoleSchema = Type.Union([Type.Literal('customer'), Type.Literal('organizer'), Type.Literal('admin')])
 

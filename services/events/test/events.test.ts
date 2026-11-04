@@ -1,5 +1,5 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createRedis, type Pool, type Redis } from '@ticketflow/common'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../src/app'
 import {
   daysFromNow,
@@ -8,9 +8,9 @@ import {
   makeUser,
   resetData,
   setupInfra,
+  type TestUser,
   testConfig,
   verifyToken,
-  type TestUser,
 } from './helpers'
 
 type App = Awaited<ReturnType<typeof buildApp>>
@@ -66,8 +66,7 @@ async function publishedEvent(overrides: Record<string, unknown> = {}) {
   return (await action(event.id, 'publish', organizer)).json()
 }
 
-const outboxRows = async () =>
-  (await pool.query('SELECT type, aggregate_id, payload FROM outbox ORDER BY id')).rows
+const outboxRows = async () => (await pool.query('SELECT type, aggregate_id, payload FROM outbox ORDER BY id')).rows
 
 describe('crear eventos', () => {
   it('un organizador crea un borrador con capacidad calculada', async () => {
@@ -305,8 +304,6 @@ describe('panel del organizador', () => {
 
     const res = await app.inject({ method: 'GET', url: '/organizer/events', headers: auth(organizer) })
     expect(res.json().items).toHaveLength(2)
-    expect(new Set(res.json().items.map((e: { status: string }) => e.status))).toEqual(
-      new Set(['draft', 'published']),
-    )
+    expect(new Set(res.json().items.map((e: { status: string }) => e.status))).toEqual(new Set(['draft', 'published']))
   })
 })

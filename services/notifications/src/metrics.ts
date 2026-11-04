@@ -1,4 +1,4 @@
-import { registerDbGauge, type Pool } from '@ticketflow/common'
+import { type Pool, registerDbGauge } from '@ticketflow/common'
 
 export function registerBusinessMetrics(pool: Pool) {
   registerDbGauge({

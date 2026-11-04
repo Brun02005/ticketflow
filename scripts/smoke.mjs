@@ -1,7 +1,8 @@
 // Prueba de punta a punta contra el sistema levantado, pasando por el gateway.
 // Uso: npm run smoke   (GATEWAY_URL y RABBITMQ_API_URL configurables)
-import { randomUUID } from 'node:crypto'
+
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:3000'
 const RABBIT_API = process.env.RABBITMQ_API_URL ?? 'http://guest:guest@localhost:15672'
@@ -226,7 +227,10 @@ await step('llegan los emails: bienvenida, pago rechazado y entradas con QR (Mai
     await new Promise((r) => setTimeout(r, 500))
   }
   assert.ok(subjects.includes('Bienvenido a TicketFlow'), `asuntos recibidos: ${subjects.join(' | ')}`)
-  assert.ok(subjects.some((s) => s.startsWith('No pudimos procesar tu pago')), `asuntos: ${subjects.join(' | ')}`)
+  assert.ok(
+    subjects.some((s) => s.startsWith('No pudimos procesar tu pago')),
+    `asuntos: ${subjects.join(' | ')}`,
+  )
   const tickets = (await inbox(email)).find((m) => m.Subject.startsWith('Tus entradas'))
   assert.ok(tickets, `no llegó el email de entradas (asuntos: ${subjects.join(' | ')})`)
   const full = await fetch(`${MAILPIT}/api/v1/message/${tickets.ID}`).then((r) => r.json())

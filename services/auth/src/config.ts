@@ -1,10 +1,9 @@
-import { Type, loadEnv, type Static } from '@ticketflow/common'
+import { loadEnv, type Static, Type } from '@ticketflow/common'
 
 export const AuthEnv = Type.Object({
-  NODE_ENV: Type.Union(
-    [Type.Literal('development'), Type.Literal('production'), Type.Literal('test')],
-    { default: 'development' },
-  ),
+  NODE_ENV: Type.Union([Type.Literal('development'), Type.Literal('production'), Type.Literal('test')], {
+    default: 'development',
+  }),
   PORT: Type.Integer({ default: 3001 }),
   LOG_LEVEL: Type.String({ default: 'info' }),
   /** Ver parseTrustProxy en @ticketflow/common. */
@@ -25,7 +24,9 @@ export type AuthConfig = Static<typeof AuthEnv>
 export function loadConfig(source?: Record<string, string | undefined>): AuthConfig {
   const config = loadEnv(AuthEnv, source)
   if (config.NODE_ENV === 'production' && !config.JWT_PRIVATE_KEY) {
-    throw new Error('JWT_PRIVATE_KEY es obligatoria en producción (generala con `npm run keys -w @ticketflow/auth-service`)')
+    throw new Error(
+      'JWT_PRIVATE_KEY es obligatoria en producción (generala con `npm run keys -w @ticketflow/auth-service`)',
+    )
   }
   return config
 }

@@ -1,19 +1,19 @@
 import { fileURLToPath } from 'node:url'
 import {
+  createPool,
+  createTokenVerifier,
   OutboxRelay,
   PeriodicTask,
   RabbitConsumer,
   RabbitPublisher,
-  createPool,
-  createTokenVerifier,
   remoteJwks,
   runMigrations,
   startServer,
 } from '@ticketflow/common'
 import { buildApp } from './app'
 import { loadConfig } from './config'
-import { registerBusinessMetrics } from './metrics'
 import { expireOrders, purgeIdempotencyKeys } from './expirer'
+import { registerBusinessMetrics } from './metrics'
 import { handleDomainEvent } from './projection'
 
 const config = loadConfig()

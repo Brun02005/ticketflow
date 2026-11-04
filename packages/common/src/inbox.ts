@@ -1,4 +1,4 @@
-import { withTransaction, type Pool, type PoolClient } from './db'
+import { type Pool, type PoolClient, withTransaction } from './db'
 
 /**
  * Consumidor idempotente (patrón Inbox).

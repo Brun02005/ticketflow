@@ -1,12 +1,12 @@
 import { timingSafeEqual } from 'node:crypto'
 import {
   AppError,
+  createHttpApp,
+  type FastifyPluginAsyncTypebox,
+  loadEnv,
+  type Static,
   Type,
   UnauthorizedError,
-  createHttpApp,
-  loadEnv,
-  type FastifyPluginAsyncTypebox,
-  type Static,
 } from '@ticketflow/common'
 import { PaymentProvider, TEST_CARDS } from './provider'
 
@@ -26,8 +26,7 @@ export const PspEnv = Type.Object({
 export type PspConfig = Static<typeof PspEnv>
 export const loadConfig = (source?: Record<string, string | undefined>) => loadEnv(PspEnv, source)
 
-const sameSecret = (a: string, b: string) =>
-  a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
+const sameSecret = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
 
 export async function buildApp(config: PspConfig) {
   const app = createHttpApp({ serviceName: 'psp-simulator', logLevel: config.LOG_LEVEL })
@@ -72,9 +71,13 @@ export async function buildApp(config: PspConfig) {
       async (req, reply) => reply.status(202).send(provider.createCharge(req.headers['idempotency-key'], req.body)),
     )
 
-    api.get('/v1/charges', { schema: { querystring: Type.Object({ reference: Type.Optional(Type.String()) }) } }, async (req) => ({
-      data: req.query.reference ? provider.findCharges(req.query.reference) : provider.listCharges(),
-    }))
+    api.get(
+      '/v1/charges',
+      { schema: { querystring: Type.Object({ reference: Type.Optional(Type.String()) }) } },
+      async (req) => ({
+        data: req.query.reference ? provider.findCharges(req.query.reference) : provider.listCharges(),
+      }),
+    )
 
     api.get('/v1/charges/:id', { schema: { params: Type.Object({ id: Type.String() }) } }, async (req) =>
       provider.getCharge(req.params.id),

@@ -1,13 +1,13 @@
 import {
-  PoisonMessageError,
-  Type,
-  Value,
-  processOnce,
   type DomainEvent,
+  PoisonMessageError,
   type Pool,
   type PoolClient,
+  processOnce,
   type Static,
   type TSchema,
+  Type,
+  Value,
 } from '@ticketflow/common'
 
 export type NotificationKind = 'welcome' | 'tickets' | 'payment_failed' | 'order_expired' | 'event_cancelled' | 'refund'
@@ -72,7 +72,9 @@ const PaymentRefunded = Type.Object({
 
 function parse<T extends TSchema>(schema: T, event: DomainEvent): Static<T> {
   if (!Value.Check(schema, event.payload)) {
-    throw new PoisonMessageError(`${event.type} con payload inválido: ${Value.Errors(schema, event.payload)[0]?.message}`)
+    throw new PoisonMessageError(
+      `${event.type} con payload inválido: ${Value.Errors(schema, event.payload)[0]?.message}`,
+    )
   }
   return event.payload as Static<T>
 }
@@ -110,7 +112,13 @@ export async function handleMessage(pool: Pool, event: DomainEvent, logger: Logg
            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, updated_at = now()`,
           [u.userId, u.email],
         )
-        await enqueue(tx, { dedupeKey: `welcome:${u.userId}`, kind: 'welcome', userId: u.userId, eventId: null, payload: {} })
+        await enqueue(tx, {
+          dedupeKey: `welcome:${u.userId}`,
+          kind: 'welcome',
+          userId: u.userId,
+          eventId: null,
+          payload: {},
+        })
       }
       break
     }

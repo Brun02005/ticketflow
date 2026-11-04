@@ -1,11 +1,11 @@
 import { fileURLToPath } from 'node:url'
 import {
+  createPool,
+  createTokenVerifier,
   OutboxRelay,
   PeriodicTask,
   RabbitConsumer,
   RabbitPublisher,
-  createPool,
-  createTokenVerifier,
   remoteJwks,
   runMigrations,
   startServer,

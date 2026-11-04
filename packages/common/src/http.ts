@@ -1,7 +1,7 @@
-import Fastify, { type FastifyError } from 'fastify'
+import { randomUUID } from 'node:crypto'
 import { Type, type TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import { trace } from '@opentelemetry/api'
-import { randomUUID } from 'node:crypto'
+import Fastify, { type FastifyError } from 'fastify'
 import { AppError } from './errors'
 import { httpRequestDuration, setServiceLabel, startMetricsServer } from './metrics'
 

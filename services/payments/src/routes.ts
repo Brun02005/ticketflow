@@ -1,15 +1,15 @@
-import type { FastifyPluginAsync } from 'fastify'
 import {
   BadRequestError,
-  Type,
-  WEBHOOK_SIGNATURE_HEADER,
-  requireAuth,
-  verifyWebhookSignature,
-  withTransaction,
   type FastifyPluginAsyncTypebox,
   type Pool,
+  requireAuth,
   type TokenVerifier,
+  Type,
+  verifyWebhookSignature,
+  WEBHOOK_SIGNATURE_HEADER,
+  withTransaction,
 } from '@ticketflow/common'
+import type { FastifyPluginAsync } from 'fastify'
 import { applyChargeResult, type PaymentsService } from './payments'
 import { applyRefundSucceeded } from './reconciler'
 
@@ -35,10 +35,10 @@ const PaymentView = Type.Object({
   ),
 })
 
-export const paymentRoutes: FastifyPluginAsyncTypebox<{ service: PaymentsService; verifyToken: TokenVerifier }> = async (
-  app,
-  { service, verifyToken },
-) => {
+export const paymentRoutes: FastifyPluginAsyncTypebox<{
+  service: PaymentsService
+  verifyToken: TokenVerifier
+}> = async (app, { service, verifyToken }) => {
   const authenticated = requireAuth(verifyToken)
   const OrderParams = Type.Object({ orderId: Type.String({ format: 'uuid' }) })
 
@@ -98,53 +98,61 @@ export const webhookRoutes: FastifyPluginAsync<{ pool: Pool; secret: string }> =
   app.removeAllContentTypeParsers()
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => done(null, body))
 
-  app.post('/webhooks/psp', { schema: { tags: ['pagos'], summary: 'Webhook de la pasarela (firmado)' } }, async (req) => {
-    const raw = req.body as string
-    const verification = verifyWebhookSignature(secret, req.headers[WEBHOOK_SIGNATURE_HEADER] as string | undefined, raw)
-    if (!verification.ok) {
-      req.log.warn({ reason: verification.reason }, 'webhook rechazado')
-      throw new BadRequestError(verification.reason, 'Firma del webhook inválida')
-    }
-
-    let event: PspWebhookEvent
-    try {
-      event = JSON.parse(raw) as PspWebhookEvent
-    } catch {
-      throw new BadRequestError('INVALID_JSON', 'Body inválido')
-    }
-
-    const isNew = await withTransaction(pool, async (tx) => {
-      // Deduplicación por id del evento, en la misma transacción que el efecto.
-      const { rowCount } = await tx.query(
-        `INSERT INTO webhook_events (id, type) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        [event.id, event.type],
+  app.post(
+    '/webhooks/psp',
+    { schema: { tags: ['pagos'], summary: 'Webhook de la pasarela (firmado)' } },
+    async (req) => {
+      const raw = req.body as string
+      const verification = verifyWebhookSignature(
+        secret,
+        req.headers[WEBHOOK_SIGNATURE_HEADER] as string | undefined,
+        raw,
       )
-      if (rowCount === 0) return false
-
-      switch (event.type) {
-        case 'charge.succeeded':
-        case 'charge.failed':
-          await applyChargeResult(
-            tx,
-            {
-              reference: event.data.reference,
-              pspChargeId: event.data.id,
-              status: event.data.status,
-              amount: event.data.amount,
-              currency: event.data.currency,
-              failureReason: event.data.failureReason,
-            },
-            req.log,
-          )
-          break
-        case 'refund.succeeded':
-          await applyRefundSucceeded(tx, event.data.reference, req.log)
-          break
+      if (!verification.ok) {
+        req.log.warn({ reason: verification.reason }, 'webhook rechazado')
+        throw new BadRequestError(verification.reason, 'Firma del webhook inválida')
       }
-      return true
-    })
 
-    // Siempre 200 para un webhook válido (aunque sea duplicado): si no, la pasarela lo reintenta.
-    return { received: true, duplicate: !isNew }
-  })
+      let event: PspWebhookEvent
+      try {
+        event = JSON.parse(raw) as PspWebhookEvent
+      } catch {
+        throw new BadRequestError('INVALID_JSON', 'Body inválido')
+      }
+
+      const isNew = await withTransaction(pool, async (tx) => {
+        // Deduplicación por id del evento, en la misma transacción que el efecto.
+        const { rowCount } = await tx.query(
+          `INSERT INTO webhook_events (id, type) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [event.id, event.type],
+        )
+        if (rowCount === 0) return false
+
+        switch (event.type) {
+          case 'charge.succeeded':
+          case 'charge.failed':
+            await applyChargeResult(
+              tx,
+              {
+                reference: event.data.reference,
+                pspChargeId: event.data.id,
+                status: event.data.status,
+                amount: event.data.amount,
+                currency: event.data.currency,
+                failureReason: event.data.failureReason,
+              },
+              req.log,
+            )
+            break
+          case 'refund.succeeded':
+            await applyRefundSucceeded(tx, event.data.reference, req.log)
+            break
+        }
+        return true
+      })
+
+      // Siempre 200 para un webhook válido (aunque sea duplicado): si no, la pasarela lo reintenta.
+      return { received: true, duplicate: !isNew }
+    },
+  )
 }

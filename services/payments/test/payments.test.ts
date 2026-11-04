@@ -1,12 +1,11 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { signWebhook, WEBHOOK_SIGNATURE_HEADER } from '@ticketflow/common'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { buildApp } from '../src/app'
 import { PspClient } from '../src/psp-client'
 import { dispatchRefunds, reconcileCharges } from '../src/reconciler'
 import { handleOrderMessage } from '../src/saga'
-import { buildApp } from '../src/app'
 import {
   CARDS,
-  WEBHOOK_SECRET,
   makeUser,
   message,
   orderCreated,
@@ -14,6 +13,7 @@ import {
   silentLogger,
   startStack,
   verifyToken,
+  WEBHOOK_SECRET,
 } from './helpers'
 
 let stack: Awaited<ReturnType<typeof startStack>>
@@ -76,7 +76,11 @@ describe('cobrar', () => {
     await expect.poll(() => status(order.id)).toBe('succeeded')
 
     const { charges } = (
-      await stack.app.inject({ method: 'GET', url: `/payments/${order.id}`, headers: { authorization: `Bearer ${user.token}` } })
+      await stack.app.inject({
+        method: 'GET',
+        url: `/payments/${order.id}`,
+        headers: { authorization: `Bearer ${user.token}` },
+      })
     ).json()
     expect(charges.map((c: { status: string; failureReason: string | null }) => [c.status, c.failureReason])).toEqual([
       ['failed', 'card_declined'],
@@ -138,9 +142,9 @@ describe('webhooks', () => {
 
     expect((await sendWebhook(body)).json().error.code).toBe('MISSING_SIGNATURE')
     expect((await sendWebhook(body, signWebhook('otro-secreto', body))).json().error.code).toBe('INVALID_SIGNATURE')
-    expect((await sendWebhook(body.replace('evt_x', 'evt_y'), signWebhook(WEBHOOK_SECRET, body))).json().error.code).toBe(
-      'INVALID_SIGNATURE',
-    )
+    expect(
+      (await sendWebhook(body.replace('evt_x', 'evt_y'), signWebhook(WEBHOOK_SECRET, body))).json().error.code,
+    ).toBe('INVALID_SIGNATURE')
     expect((await sendWebhook(body, signWebhook(WEBHOOK_SECRET, body, oneHourAgo))).json().error.code).toBe(
       'STALE_SIGNATURE',
     )
@@ -207,9 +211,13 @@ describe('compensación: reembolsos', () => {
     await handleOrderMessage(stack.pool, message('order.payment_rejected', { orderId: order.id }), silentLogger)
     expect(await status(order.id)).toBe('refund_pending')
 
-    expect(await dispatchRefunds(stack.pool, stack.pspClient, stack.config.PUBLIC_WEBHOOK_URL, 60, silentLogger)).toBe(1)
+    expect(await dispatchRefunds(stack.pool, stack.pspClient, stack.config.PUBLIC_WEBHOOK_URL, 60, silentLogger)).toBe(
+      1,
+    )
     // Reclamado: otra corrida inmediata no lo vuelve a pedir.
-    expect(await dispatchRefunds(stack.pool, stack.pspClient, stack.config.PUBLIC_WEBHOOK_URL, 60, silentLogger)).toBe(0)
+    expect(await dispatchRefunds(stack.pool, stack.pspClient, stack.config.PUBLIC_WEBHOOK_URL, 60, silentLogger)).toBe(
+      0,
+    )
 
     await expect.poll(() => status(order.id)).toBe('refunded')
     expect(await outboxTypes()).toEqual(['payment.succeeded', 'payment.refunded'])

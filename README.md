@@ -54,15 +54,15 @@ flowchart LR
     NOT --- PGN[(Postgres notifications)]
 ```
 
-| Servicio | Estado | Responsabilidad |
-|---|---|---|
-| `api-gateway` | ✅ | Punto de entrada único: ruteo, validación de JWT, rate limiting distribuido, CORS |
-| `auth-service` | ✅ | Registro, login, JWT firmados con Ed25519, rotación de refresh tokens |
-| `events-service` | ✅ | Eventos y sectores, caché en Redis, publica eventos de dominio vía outbox |
-| `orders-service` | ✅ | Inventario de asientos, reservas con vencimiento, cero sobreventa, idempotencia |
-| `payments-service` | ✅ | Cobros, webhooks firmados, conciliación, reembolsos (saga de compra) |
-| `psp-simulator` | ✅ | Pasarela de pagos externa simulada: tarjetas de prueba, webhooks con reintentos, fallas inyectables |
-| `notifications-worker` | ✅ | Emails transaccionales, entradas con QR firmado, reintentos persistentes con backoff |
+| Servicio               | Estado | Responsabilidad                                                                                     |
+| ---------------------- | ------ | --------------------------------------------------------------------------------------------------- |
+| `api-gateway`          | ✅     | Punto de entrada único: ruteo, validación de JWT, rate limiting distribuido, CORS                   |
+| `auth-service`         | ✅     | Registro, login, JWT firmados con Ed25519, rotación de refresh tokens                               |
+| `events-service`       | ✅     | Eventos y sectores, caché en Redis, publica eventos de dominio vía outbox                           |
+| `orders-service`       | ✅     | Inventario de asientos, reservas con vencimiento, cero sobreventa, idempotencia                     |
+| `payments-service`     | ✅     | Cobros, webhooks firmados, conciliación, reembolsos (saga de compra)                                |
+| `psp-simulator`        | ✅     | Pasarela de pagos externa simulada: tarjetas de prueba, webhooks con reintentos, fallas inyectables |
+| `notifications-worker` | ✅     | Emails transaccionales, entradas con QR firmado, reintentos persistentes con backoff                |
 
 ## La saga de compra
 
@@ -90,19 +90,20 @@ sequenceDiagram
     end
 ```
 
-| Qué falla | Qué pasa |
-|---|---|
-| La tarjeta es rechazada | El pago vuelve a "esperando pago"; el cliente reintenta con otra tarjeta mientras la reserva siga vigente |
-| El cliente hace doble click en "pagar" | Una sola llamada llega a la pasarela (lock + índice único parcial: nunca dos cobros en curso) |
-| La pasarela no responde | El cobro queda "en duda" y no se marca como fallido a ciegas. La conciliación consulta a la pasarela y lo resuelve |
-| El webhook se pierde | La conciliación consulta los cobros sin respuesta y aplica el resultado |
-| El webhook llega duplicado | Se descarta por id de evento, en la misma transacción que el efecto |
-| El pago llega cuando la reserva ya venció | orders lo rechaza y payments reembolsa (verificado de punta a punta en Docker) |
-| Se cancela el evento | Las órdenes pendientes se anulan y las pagadas se reembolsan |
+| Qué falla                                 | Qué pasa                                                                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| La tarjeta es rechazada                   | El pago vuelve a "esperando pago"; el cliente reintenta con otra tarjeta mientras la reserva siga vigente          |
+| El cliente hace doble click en "pagar"    | Una sola llamada llega a la pasarela (lock + índice único parcial: nunca dos cobros en curso)                      |
+| La pasarela no responde                   | El cobro queda "en duda" y no se marca como fallido a ciegas. La conciliación consulta a la pasarela y lo resuelve |
+| El webhook se pierde                      | La conciliación consulta los cobros sin respuesta y aplica el resultado                                            |
+| El webhook llega duplicado                | Se descarta por id de evento, en la misma transacción que el efecto                                                |
+| El pago llega cuando la reserva ya venció | orders lo rechaza y payments reembolsa (verificado de punta a punta en Docker)                                     |
+| Se cancela el evento                      | Las órdenes pendientes se anulan y las pagadas se reembolsan                                                       |
 
 ## Decisiones técnicas destacadas
 
 ### notifications-worker
+
 - **Recibir y enviar están desacoplados.** El consumidor de RabbitMQ solo registra la intención de mandar el email (una fila, en la misma transacción que el inbox) y confirma el mensaje. Un despachador aparte envía por SMTP. Si el SMTP está lento o caído, la cola no se frena.
 - **Un hecho, un email.** Cada notificación tiene una clave de deduplicación por hecho de negocio (`tickets:<orderId>`), no por mensaje. Si el mismo hecho llega por dos mensajes distintos (el relay publicó dos veces), igual sale un solo email.
 - **Reintentos persistentes con backoff exponencial y jitter**, guardados en la base: sobreviven a reinicios.
@@ -115,6 +116,7 @@ sequenceDiagram
 - El HTML escapa todo lo que viene de usuarios (un título con `<script>` no inyecta nada en el email).
 
 ### payments-service
+
 - **Webhooks firmados** con HMAC-SHA256 sobre `timestamp.body crudo` (estilo Stripe).
   - Comparación en tiempo constante y tolerancia de 5 minutos contra replay attacks.
   - Se verifica el body crudo, por eso el endpoint tiene su propio parser.
@@ -127,19 +129,21 @@ sequenceDiagram
 - **Datos de tarjeta:** solo se guardan los últimos 4 dígitos. En producción se usaría la tokenización de la pasarela y el número nunca pasaría por el backend.
 
 ### psp-simulator
+
 Sustituye a Mercado Pago o Stripe para poder probar las fallas a voluntad:
 
-| Tarjeta | Resultado |
-|---|---|
-| `4242424242424242` | Aprobada |
-| `4000000000000002` | Rechazada |
-| `4000000000009995` | Fondos insuficientes |
-| `4000000000000077` | Aprobada, webhook duplicado |
+| Tarjeta            | Resultado                                         |
+| ------------------ | ------------------------------------------------- |
+| `4242424242424242` | Aprobada                                          |
+| `4000000000000002` | Rechazada                                         |
+| `4000000000009995` | Fondos insuficientes                              |
+| `4000000000000077` | Aprobada, webhook duplicado                       |
 | `4000000000000101` | Aprobada, webhook perdido (requiere conciliación) |
 
 Además reintenta los webhooks con backoff exponencial y, con `PSP_ERROR_RATE`, responde 503 al azar.
 
 ### orders-service: vender sin sobreventa
+
 - **Inventario propio construido por eventos.** Consume `event.published` y genera una fila por asiento (`generate_series`, un INSERT por sector). No consulta a events-service al vender: si events se cae, la venta sigue.
 - **Cero sobreventa.** Los asientos pedidos se bloquean con `SELECT ... FOR UPDATE` dentro de la transacción de compra. Es todo o nada: si uno no está libre, no se reserva ninguno.
   - Un test dispara 50 compras simultáneas del mismo asiento y verifica que gana exactamente una.
@@ -159,14 +163,16 @@ Además reintenta los webhooks con backoff exponencial y, con `PSP_ERROR_RATE`, 
   - Los reintentos los cuenta la aplicación: en RabbitMQ 4 un `nack` con requeue no incrementa el contador de `x-delivery-limit`, y un test lo detectó (el mensaje se reintentaba en loop).
 
 ### api-gateway
+
 - **Autenticación en el borde y en cada servicio.** El gateway rechaza tokens inválidos antes de que lleguen a los servicios, y cada servicio los vuelve a validar (defensa en profundidad).
-- **Rate limiting distribuido en Redis.** El límite se cuenta por usuario si está autenticado, o por IP si no, y se respeta aunque haya varias réplicas del gateway. Si Redis se cae, deja pasar el tráfico (*fail-open*) en lugar de tirar toda la API.
+- **Rate limiting distribuido en Redis.** El límite se cuenta por usuario si está autenticado, o por IP si no, y se respeta aunque haya varias réplicas del gateway. Si Redis se cae, deja pasar el tráfico (_fail-open_) en lugar de tirar toda la API.
 - **Request id de punta a punta.** El `x-request-id` se genera o recibe en el gateway y viaja a cada servicio, así una request se rastrea en todos los logs.
 - **IP real del cliente.** El gateway reemplaza (no concatena) el `X-Forwarded-For`, y auth-service solo le cree a ese header si `TRUST_PROXY` lo habilita. Así nadie esquiva el límite de intentos de login falsificando su IP.
 - Si un servicio no responde, devuelve un **503/504 con el formato de error común**, sin colgar la request.
 
 ### events-service
-- **Transactional Outbox.** Publicar un evento escribe el cambio de estado y el mensaje `event.published` **en la misma transacción**. Un relay los publica en RabbitMQ con *publisher confirms*.
+
+- **Transactional Outbox.** Publicar un evento escribe el cambio de estado y el mensaje `event.published` **en la misma transacción**. Un relay los publica en RabbitMQ con _publisher confirms_.
   - Si RabbitMQ está caído, la API sigue funcionando y los mensajes se acumulan. Cuando vuelve, se publican en orden.
   - `FOR UPDATE SKIP LOCKED` permite correr varias réplicas del relay sin duplicar envíos.
 - **Bloqueo optimista** al editar: cada evento tiene `version`. Si dos personas editan a la vez, una gana y la otra recibe `409 VERSION_CONFLICT` en vez de pisar cambios.
@@ -178,12 +184,14 @@ Además reintenta los webhooks con backoff exponencial y, con `PSP_ERROR_RATE`, 
 - Los permisos se chequean en `onRequest`, **antes de validar el body**: un usuario sin rol recibe 403 y no puede sondear el formato del endpoint.
 
 ### auth-service
+
 - **Tokens asimétricos (EdDSA / Ed25519).** Solo auth-service tiene la clave privada. Los demás servicios validan con la clave pública de `/.well-known/jwks.json`, que cachean.
 - **Refresh tokens opacos con rotación y detección de reutilización.** Si se presenta un token ya rotado (señal de robo), se revoca toda la sesión. En la base solo se guarda su SHA-256.
 - **Concurrencia en refresh:** `SELECT ... FOR UPDATE` garantiza que de 5 refresh simultáneos con el mismo token gane exactamente uno.
 - **Contraseñas con scrypt** (nativo de Node) y **anti-enumeración**: el login responde y tarda lo mismo con un email inexistente que con una contraseña incorrecta.
 
 ### Transversal (`packages/common`)
+
 - Configuración validada con schema al arrancar.
 - Logs JSON estructurados con headers sensibles censurados y formato de error uniforme.
 - Health checks de liveness y readiness, y apagado ordenado ante SIGTERM.
@@ -199,26 +207,27 @@ Al terminar, la prueba consulta el sistema y verifica que ningún asiento esté 
 
 Resultado en una notebook:
 
-| | |
-|---|---|
-| Intentos de compra | **15.091** (~300/s) |
-| Reservas concretadas | 72 órdenes, los 100 asientos tomados |
+|                                                 |                                                            |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| Intentos de compra                              | **15.091** (~300/s)                                        |
+| Reservas concretadas                            | 72 órdenes, los 100 asientos tomados                       |
 | Intentos rechazados por asiento ya tomado (409) | 15.019 (99,5%): la protección contra sobreventa trabajando |
-| **Asientos vendidos dos veces** | **0** |
-| Inventario vs. órdenes | 100 = 100 |
-| Errores 5xx | 0 |
-| Latencia p95 de la compra | 630 ms, con todos peleando por las mismas filas |
-| Sagas de pago completadas | 39 de 39, con 39 emails de entradas enviados y DLQ en 0 |
+| **Asientos vendidos dos veces**                 | **0**                                                      |
+| Inventario vs. órdenes                          | 100 = 100                                                  |
+| Errores 5xx                                     | 0                                                          |
+| Latencia p95 de la compra                       | 630 ms, con todos peleando por las mismas filas            |
+| Sagas de pago completadas                       | 39 de 39, con 39 emails de entradas enviados y DLQ en 0    |
 
 ## Observabilidad
 
-| Herramienta | Qué muestra |
-|---|---|
-| **Jaeger** (http://localhost:16686) | Trazas distribuidas con OpenTelemetry. Cada request se ve atravesando gateway → servicio → Postgres/Redis → **outbox → RabbitMQ → consumidores**, como una sola traza |
-| **Prometheus** (http://localhost:9090) | Métricas de los 7 servicios y de RabbitMQ (incluida la profundidad de cada DLQ) |
-| **Grafana** (http://localhost:3100) | Dashboard provisionado: asientos vendidos y reservados, facturación, órdenes y pagos por estado, requests/s, p95, 5xx, compras vs. 409, 429, DLQ, outbox pendiente, cobros en duda, notificaciones fallidas, event loop lag |
+| Herramienta                            | Qué muestra                                                                                                                                                                                                                 |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Jaeger** (http://localhost:16686)    | Trazas distribuidas con OpenTelemetry. Cada request se ve atravesando gateway → servicio → Postgres/Redis → **outbox → RabbitMQ → consumidores**, como una sola traza                                                       |
+| **Prometheus** (http://localhost:9090) | Métricas de los 7 servicios y de RabbitMQ (incluida la profundidad de cada DLQ)                                                                                                                                             |
+| **Grafana** (http://localhost:3100)    | Dashboard provisionado: asientos vendidos y reservados, facturación, órdenes y pagos por estado, requests/s, p95, 5xx, compras vs. 409, 429, DLQ, outbox pendiente, cobros en duda, notificaciones fallidas, event loop lag |
 
 Decisiones:
+
 - **La traza atraviesa el outbox.** El outbox corta la traza naturalmente: el relay publica más tarde, fuera de la request.
   - Al encolar se guarda el `traceparent` (W3C Trace Context) junto al mensaje.
   - El relay lo usa como padre del span `publish` y lo manda en los headers AMQP; el consumidor continúa la misma traza.
@@ -257,24 +266,25 @@ npm run smoke        # prueba de punta a punta a través del gateway
 npm run load         # prueba de carga con k6 (verifica cero sobreventa)
 ```
 
-| URL | Qué es |
-|---|---|
-| http://localhost:3000 | API Gateway (punto de entrada) |
-| http://localhost:3001/docs | Swagger de auth-service (modo desarrollo) |
-| http://localhost:3002/docs | Swagger de events-service (modo desarrollo) |
-| http://localhost:3003/docs | Swagger de orders-service (modo desarrollo) |
-| http://localhost:3004/docs | Swagger de payments-service (modo desarrollo) |
-| http://localhost:4000/test-cards | Tarjetas de prueba de la pasarela simulada |
-| http://localhost:3005/docs | Swagger de notifications-worker (modo desarrollo) |
-| http://localhost:15672 | Panel de RabbitMQ (guest / guest): exchange `ticketflow.events` |
-| http://localhost:8025 | Bandeja de Mailpit: acá llegan los emails (bienvenida, entradas con QR, rechazos, reembolsos) |
-| http://localhost:3100 | Grafana: dashboard "TicketFlow · Visión general" (modo producción) |
-| http://localhost:16686 | Jaeger: trazas distribuidas (modo producción) |
-| http://localhost:9090 | Prometheus (modo producción) |
+| URL                              | Qué es                                                                                        |
+| -------------------------------- | --------------------------------------------------------------------------------------------- |
+| http://localhost:3000            | API Gateway (punto de entrada)                                                                |
+| http://localhost:3001/docs       | Swagger de auth-service (modo desarrollo)                                                     |
+| http://localhost:3002/docs       | Swagger de events-service (modo desarrollo)                                                   |
+| http://localhost:3003/docs       | Swagger de orders-service (modo desarrollo)                                                   |
+| http://localhost:3004/docs       | Swagger de payments-service (modo desarrollo)                                                 |
+| http://localhost:4000/test-cards | Tarjetas de prueba de la pasarela simulada                                                    |
+| http://localhost:3005/docs       | Swagger de notifications-worker (modo desarrollo)                                             |
+| http://localhost:15672           | Panel de RabbitMQ (guest / guest): exchange `ticketflow.events`                               |
+| http://localhost:8025            | Bandeja de Mailpit: acá llegan los emails (bienvenida, entradas con QR, rechazos, reembolsos) |
+| http://localhost:3100            | Grafana: dashboard "TicketFlow · Visión general" (modo producción)                            |
+| http://localhost:16686           | Jaeger: trazas distribuidas (modo producción)                                                 |
+| http://localhost:9090            | Prometheus (modo producción)                                                                  |
 
 ## Tests
 
 146 tests de integración contra Postgres, Redis, RabbitMQ y SMTP (Mailpit) reales, sin mocks de la infraestructura. Los tests de mensajería usan un vhost de RabbitMQ aislado.
+
 - **Concurrencia:** compras simultáneas del mismo asiento, pedidos superpuestos, doble click en pagar, refresh tokens simultáneos, ediciones simultáneas y varias réplicas del relay.
 - **Mensajería:** reintentos y DLQ contra el broker real.
 - **Pagos:** los tests levantan la pasarela simulada y payments-service en puertos reales, así los webhooks firmados viajan por HTTP de verdad.

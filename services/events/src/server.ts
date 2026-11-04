@@ -1,10 +1,10 @@
 import { fileURLToPath } from 'node:url'
 import {
-  OutboxRelay,
-  RabbitPublisher,
   createPool,
   createRedis,
   createTokenVerifier,
+  OutboxRelay,
+  RabbitPublisher,
   remoteJwks,
   runMigrations,
   startServer,

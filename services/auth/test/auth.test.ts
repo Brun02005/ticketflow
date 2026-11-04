@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
+import { createPool, type Pool, runMigrations } from '@ticketflow/common'
 import { createLocalJWKSet, jwtVerify } from 'jose'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createPool, runMigrations, type Pool } from '@ticketflow/common'
 import { buildApp } from '../src/app'
 import { loadConfig } from '../src/config'
 import { loadSigningKeys, type SigningKeys } from '../src/keys'
@@ -44,8 +44,7 @@ afterAll(async () => {
   await pool.end()
 })
 
-const register = (body: Record<string, unknown>) =>
-  app.inject({ method: 'POST', url: '/auth/register', payload: body })
+const register = (body: Record<string, unknown>) => app.inject({ method: 'POST', url: '/auth/register', payload: body })
 const login = (email: string, password: string) =>
   app.inject({ method: 'POST', url: '/auth/login', payload: { email, password } })
 const refresh = (refreshToken: string) =>

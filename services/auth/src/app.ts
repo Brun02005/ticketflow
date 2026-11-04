@@ -1,6 +1,6 @@
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
-import { createHttpApp, parseTrustProxy, registerDocs, type Pool } from '@ticketflow/common'
+import { createHttpApp, type Pool, parseTrustProxy, registerDocs } from '@ticketflow/common'
 import type { AuthConfig } from './config'
 import type { SigningKeys } from './keys'
 import { authRoutes } from './routes'

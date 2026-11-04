@@ -1,20 +1,19 @@
-import { connect, type Channel, type ChannelModel } from 'amqplib'
 import { context, propagation, trace } from '@opentelemetry/api'
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
-  EVENTS_EXCHANGE,
+  enqueueOutbox,
   OutboxRelay,
+  type Pool,
   RabbitConsumer,
   RabbitPublisher,
-  enqueueOutbox,
+  type Redis,
   registerOutboxGauge,
   registry,
-  type Pool,
-  type Redis,
 } from '@ticketflow/common'
+import { type Channel, type ChannelModel, connect } from 'amqplib'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { eventInput, makeApp, makeUser, resetData, setupInfra } from './helpers'
 
 /**

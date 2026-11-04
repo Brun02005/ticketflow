@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { PoisonMessageError, type Pool } from '@ticketflow/common'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { handleDomainEvent } from '../src/projection'
 import { domainEvent, makeApp, makeUser, resetData, seedEvent, setupDb, silentLogger } from './helpers'
 

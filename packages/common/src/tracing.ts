@@ -1,12 +1,4 @@
-import {
-  SpanKind,
-  SpanStatusCode,
-  context,
-  propagation,
-  trace,
-  type Context,
-  type Span,
-} from '@opentelemetry/api'
+import { type Context, context, propagation, type Span, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 
 /**
  * Trazas distribuidas a través de la mensajería.

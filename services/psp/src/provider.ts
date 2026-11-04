@@ -17,7 +17,10 @@ type Outcome =
 export const TEST_CARDS: Record<string, { description: string; outcome: Outcome }> = {
   '4242424242424242': { description: 'Aprobada', outcome: { status: 'succeeded' } },
   '4000000000000002': { description: 'Rechazada', outcome: { status: 'failed', reason: 'card_declined' } },
-  '4000000000009995': { description: 'Fondos insuficientes', outcome: { status: 'failed', reason: 'insufficient_funds' } },
+  '4000000000009995': {
+    description: 'Fondos insuficientes',
+    outcome: { status: 'failed', reason: 'insufficient_funds' },
+  },
   '4000000000000077': {
     description: 'Aprobada, pero el webhook llega duplicado',
     outcome: { status: 'succeeded', duplicateWebhook: true },
@@ -128,7 +131,8 @@ export class PaymentProvider {
 
     const charge = this.charges.get(input.charge)
     if (!charge) throw new NotFoundError('CHARGE_NOT_FOUND', 'Cobro inexistente')
-    if (charge.status !== 'succeeded') throw new ConflictError('CHARGE_NOT_REFUNDABLE', 'Solo se reembolsan cobros aprobados')
+    if (charge.status !== 'succeeded')
+      throw new ConflictError('CHARGE_NOT_REFUNDABLE', 'Solo se reembolsan cobros aprobados')
     if (charge.refunded) throw new ConflictError('CHARGE_ALREADY_REFUNDED', 'El cobro ya fue reembolsado')
 
     const refund = {
@@ -218,7 +222,10 @@ export class PaymentProvider {
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', [WEBHOOK_SIGNATURE_HEADER]: signWebhook(this.options.webhookSecret, body) },
+        headers: {
+          'content-type': 'application/json',
+          [WEBHOOK_SIGNATURE_HEADER]: signWebhook(this.options.webhookSecret, body),
+        },
         body,
         signal: AbortSignal.timeout(5000),
       })

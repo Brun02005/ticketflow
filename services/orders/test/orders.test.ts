@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Pool } from '@ticketflow/common'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { expireOrders } from '../src/expirer'
-import { makeApp, makeUser, resetData, seedEvent, setupDb, type SeededEvent, type TestUser } from './helpers'
+import { makeApp, makeUser, resetData, type SeededEvent, seedEvent, setupDb, type TestUser } from './helpers'
 
 type App = Awaited<ReturnType<typeof makeApp>>
 
@@ -52,10 +52,11 @@ const buy = (
 
 const seatState = async (s: { sectionId: string; row: number; number: number }) =>
   (
-    await pool.query(
-      `SELECT status, order_id FROM seats WHERE section_id = $1 AND row = $2 AND number = $3`,
-      [s.sectionId, s.row, s.number],
-    )
+    await pool.query(`SELECT status, order_id FROM seats WHERE section_id = $1 AND row = $2 AND number = $3`, [
+      s.sectionId,
+      s.row,
+      s.number,
+    ])
   ).rows[0]
 
 const outboxTypes = async () => (await pool.query(`SELECT type FROM outbox ORDER BY id`)).rows.map((r) => r.type)
@@ -178,7 +179,11 @@ describe('consultar y cancelar', () => {
   it('cancelar libera los asientos y emite order.cancelled', async () => {
     const order = (await buy(ana, [seat(0, 1, 1)])).json()
     const cancel = (user: TestUser) =>
-      app.inject({ method: 'POST', url: `/orders/${order.id}/cancel`, headers: { authorization: `Bearer ${user.token}` } })
+      app.inject({
+        method: 'POST',
+        url: `/orders/${order.id}/cancel`,
+        headers: { authorization: `Bearer ${user.token}` },
+      })
 
     expect((await cancel(beto)).statusCode).toBe(404)
     expect((await cancel(ana)).json().status).toBe('cancelled')
@@ -191,9 +196,10 @@ describe('consultar y cancelar', () => {
 })
 
 describe('vencimiento de reservas', () => {
-  const expireAll = () => pool.query(`UPDATE orders SET expires_at = now() - interval '1 second'`).then(() =>
-    pool.query(`UPDATE seats SET held_until = now() - interval '1 second' WHERE status = 'held'`),
-  )
+  const expireAll = () =>
+    pool
+      .query(`UPDATE orders SET expires_at = now() - interval '1 second'`)
+      .then(() => pool.query(`UPDATE seats SET held_until = now() - interval '1 second' WHERE status = 'held'`))
 
   it('el job vence las órdenes impagas, libera asientos y emite order.expired', async () => {
     const order = (await buy(ana, [seat(0, 1, 1), seat(0, 1, 2)])).json()

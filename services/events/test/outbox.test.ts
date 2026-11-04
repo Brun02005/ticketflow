@@ -1,15 +1,15 @@
-import { connect, type Channel, type ChannelModel, type ConsumeMessage } from 'amqplib'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
-  EVENTS_EXCHANGE,
-  OutboxRelay,
-  RabbitPublisher,
-  enqueueOutbox,
   type DomainEvent,
+  EVENTS_EXCHANGE,
+  enqueueOutbox,
   type MessagePublisher,
+  OutboxRelay,
   type Pool,
+  RabbitPublisher,
   type Redis,
 } from '@ticketflow/common'
+import { type Channel, type ChannelModel, type ConsumeMessage, connect } from 'amqplib'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { resetData, setupInfra } from './helpers'
 
 const silent = { info() {}, warn() {}, error() {} }

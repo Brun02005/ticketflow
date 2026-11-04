@@ -1,4 +1,4 @@
-import { randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from 'node:crypto'
+import { randomBytes, type ScryptOptions, scrypt, timingSafeEqual } from 'node:crypto'
 
 /**
  * Hash de contraseñas con scrypt (incluido en Node, sin dependencias nativas).

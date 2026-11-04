@@ -55,7 +55,10 @@ export class PspClient {
   }
 
   async findCharges(reference: string): Promise<PspCharge[]> {
-    const res = await this.request<{ data: PspCharge[] }>('GET', `/v1/charges?reference=${encodeURIComponent(reference)}`)
+    const res = await this.request<{ data: PspCharge[] }>(
+      'GET',
+      `/v1/charges?reference=${encodeURIComponent(reference)}`,
+    )
     return res.data
   }
 

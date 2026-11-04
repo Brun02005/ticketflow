@@ -1,19 +1,19 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { SignJWT } from 'jose'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
-  PoisonMessageError,
   createPool,
   createTokenVerifier,
-  runMigrations,
   type DomainEvent,
+  PoisonMessageError,
   type Pool,
   type Role,
+  runMigrations,
 } from '@ticketflow/common'
+import { SignJWT } from 'jose'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../src/app'
 import { loadConfig } from '../src/config'
-import { backoffSeconds, dispatchDue, type DispatchOptions } from '../src/dispatcher'
+import { backoffSeconds, type DispatchOptions, dispatchDue } from '../src/dispatcher'
 import { handleMessage } from '../src/handlers'
 import { createSmtpMailer, type Mailer, type OutgoingEmail } from '../src/mailer'
 import { signTicket, verifyTicket } from '../src/tickets'
@@ -34,7 +34,12 @@ let smtp: Mailer
 beforeAll(async () => {
   pool = createPool(process.env.TEST_DATABASE_URL!)
   await runMigrations(pool, fileURLToPath(new URL('../migrations', import.meta.url)), { info() {} })
-  smtp = createSmtpMailer({ host: process.env.TEST_SMTP_HOST!, port: 1025, secure: false, from: 'TicketFlow <test@ticketflow.test>' })
+  smtp = createSmtpMailer({
+    host: process.env.TEST_SMTP_HOST!,
+    port: 1025,
+    secure: false,
+    from: 'TicketFlow <test@ticketflow.test>',
+  })
 })
 
 beforeEach(async () => {
@@ -53,10 +58,15 @@ const msg = (type: string, payload: unknown, messageId: string = randomUUID()): 
   occurredAt: new Date().toISOString(),
   payload,
 })
-const handle = (type: string, payload: unknown, messageId?: string) => handleMessage(pool, msg(type, payload, messageId), silent)
+const handle = (type: string, payload: unknown, messageId?: string) =>
+  handleMessage(pool, msg(type, payload, messageId), silent)
 
 const notifications = async () =>
-  (await pool.query(`SELECT id, kind, status, attempts, last_error, next_attempt_at FROM notifications ORDER BY created_at`)).rows
+  (
+    await pool.query(
+      `SELECT id, kind, status, attempts, last_error, next_attempt_at FROM notifications ORDER BY created_at`,
+    )
+  ).rows
 
 async function seed() {
   const userId = randomUUID()
@@ -119,7 +129,13 @@ describe('de mensajes a notificaciones', () => {
   it('solo avisa las cancelaciones hechas por el organizador, no las del propio usuario', async () => {
     const { userId, eventId } = await seed()
     await handle('order.cancelled', { orderId: randomUUID(), userId, eventId, reason: 'user' })
-    await handle('order.cancelled', { orderId: randomUUID(), userId, eventId, reason: 'event_cancelled', wasPaid: true })
+    await handle('order.cancelled', {
+      orderId: randomUUID(),
+      userId,
+      eventId,
+      reason: 'event_cancelled',
+      wasPaid: true,
+    })
 
     expect((await notifications()).map((n) => n.kind)).toEqual(['event_cancelled'])
   })
@@ -170,7 +186,11 @@ describe('reintentos', () => {
 
     expect(await dispatchDue(pool, smtp, options, silent)).toEqual({ sent: 0, retried: 1, failed: 0 })
     const [n] = await notifications()
-    expect(n).toMatchObject({ status: 'pending', attempts: 1, last_error: 'todavía no se conocen los datos del evento' })
+    expect(n).toMatchObject({
+      status: 'pending',
+      attempts: 1,
+      last_error: 'todavía no se conocen los datos del evento',
+    })
     expect(n.next_attempt_at.getTime()).toBeGreaterThan(Date.now())
   })
 
@@ -268,7 +288,11 @@ describe('API de operación', () => {
     const list = await app.inject({ method: 'GET', url: '/notifications?status=failed', headers: admin })
     expect(list.json().items).toHaveLength(1)
 
-    const retry = await app.inject({ method: 'POST', url: `/notifications/${list.json().items[0].id}/retry`, headers: admin })
+    const retry = await app.inject({
+      method: 'POST',
+      url: `/notifications/${list.json().items[0].id}/retry`,
+      headers: admin,
+    })
     expect(retry.json()).toEqual({ requeued: true })
     expect((await notifications())[0]).toMatchObject({ status: 'pending', attempts: 0 })
 
@@ -283,7 +307,13 @@ describe('API de operación', () => {
 
   it('el personal del evento valida QRs; uno adulterado no pasa', async () => {
     const app = await makeApp()
-    const code = signTicket(TICKET_SECRET, { orderId: randomUUID(), eventId: randomUUID(), sectionId: randomUUID(), row: 3, number: 9 })
+    const code = signTicket(TICKET_SECRET, {
+      orderId: randomUUID(),
+      eventId: randomUUID(),
+      sectionId: randomUUID(),
+      row: 3,
+      number: 9,
+    })
     const [data, signature] = code.split('.').slice(1)
     const forged = `TF1.${Buffer.from(JSON.stringify(['o', 'e', 's', 1, 1])).toString('base64url')}.${signature}`
     const verify = async (c: string, role: Role = 'organizer') =>

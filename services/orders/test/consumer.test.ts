@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { connect, type Channel, type ChannelModel } from 'amqplib'
+import { type DomainEvent, EVENTS_EXCHANGE, type Pool, RabbitConsumer } from '@ticketflow/common'
+import { type Channel, type ChannelModel, connect } from 'amqplib'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { EVENTS_EXCHANGE, RabbitConsumer, type DomainEvent, type Pool } from '@ticketflow/common'
 import { handleDomainEvent } from '../src/projection'
 import { domainEvent, resetData, setupDb, silentLogger } from './helpers'
 
@@ -45,10 +45,7 @@ const publish = (routingKey: string, body: unknown) =>
 
 const dlqDepth = async () => (await channel.checkQueue(`${queue}.dlq`)).messageCount
 
-async function startConsumer(
-  handler: (event: DomainEvent) => Promise<void>,
-  options: { maxRetries?: number } = {},
-) {
+async function startConsumer(handler: (event: DomainEvent) => Promise<void>, options: { maxRetries?: number } = {}) {
   consumer = await RabbitConsumer.start(
     URL,
     { queue, bindings: ['event.*'], retryDelayMs: 10, ...options },
@@ -72,9 +69,7 @@ describe('consumidor de eventos', () => {
       }),
     )
 
-    await expect
-      .poll(async () => (await pool.query(`SELECT count(*)::int AS n FROM seats`)).rows[0].n)
-      .toBe(20)
+    await expect.poll(async () => (await pool.query(`SELECT count(*)::int AS n FROM seats`)).rows[0].n).toBe(20)
   })
 
   it('el mismo mensaje entregado varias veces tiene efecto una sola vez', async () => {

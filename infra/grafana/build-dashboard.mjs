@@ -60,7 +60,13 @@ const timeseries = (title, targets, w, { unit = 'short', description, stack = fa
   },
 })
 
-const alertWhenAboveZero = { mode: 'absolute', steps: [{ color: 'green', value: null }, { color: 'red', value: 1 }] }
+const alertWhenAboveZero = {
+  mode: 'absolute',
+  steps: [
+    { color: 'green', value: null },
+    { color: 'red', value: 1 },
+  ],
+}
 
 const panels = [
   row('Negocio'),
@@ -78,10 +84,20 @@ const panels = [
 
   row('API'),
   ...line(8, [
-    timeseries('Requests por segundo', [['sum by (service) (rate(http_server_request_duration_seconds_count[1m]))', '{{service}}']], 8, { unit: 'reqps' }),
+    timeseries(
+      'Requests por segundo',
+      [['sum by (service) (rate(http_server_request_duration_seconds_count[1m]))', '{{service}}']],
+      8,
+      { unit: 'reqps' },
+    ),
     timeseries(
       'Latencia p95',
-      [['histogram_quantile(0.95, sum by (le, service) (rate(http_server_request_duration_seconds_bucket[1m])))', '{{service}}']],
+      [
+        [
+          'histogram_quantile(0.95, sum by (le, service) (rate(http_server_request_duration_seconds_bucket[1m])))',
+          '{{service}}',
+        ],
+      ],
       8,
       { unit: 's' },
     ),
@@ -97,15 +113,30 @@ const panels = [
     timeseries(
       'Compras: concretadas vs. asiento ya tomado',
       [
-        ['sum(rate(http_server_request_duration_seconds_count{service="orders-service",route="/orders",method="POST",status_code="201"}[1m]))', 'reservas creadas (201)'],
-        ['sum(rate(http_server_request_duration_seconds_count{service="orders-service",route="/orders",method="POST",status_code="409"}[1m]))', 'asiento ya tomado (409)'],
+        [
+          'sum(rate(http_server_request_duration_seconds_count{service="orders-service",route="/orders",method="POST",status_code="201"}[1m]))',
+          'reservas creadas (201)',
+        ],
+        [
+          'sum(rate(http_server_request_duration_seconds_count{service="orders-service",route="/orders",method="POST",status_code="409"}[1m]))',
+          'asiento ya tomado (409)',
+        ],
       ],
       12,
-      { unit: 'reqps', description: 'Bajo carga, la mayoría de los intentos choca contra asientos ya reservados. Eso es la protección contra sobreventa funcionando.' },
+      {
+        unit: 'reqps',
+        description:
+          'Bajo carga, la mayoría de los intentos choca contra asientos ya reservados. Eso es la protección contra sobreventa funcionando.',
+      },
     ),
     timeseries(
       'Rate limit del gateway (429)',
-      [['sum(rate(http_server_request_duration_seconds_count{service="api-gateway",status_code="429"}[1m])) or vector(0)', '429/s']],
+      [
+        [
+          'sum(rate(http_server_request_duration_seconds_count{service="api-gateway",status_code="429"}[1m])) or vector(0)',
+          '429/s',
+        ],
+      ],
       12,
       { unit: 'reqps' },
     ),
@@ -124,7 +155,9 @@ const panels = [
       thresholds: alertWhenAboveZero,
       description: 'Webhooks perdidos o pasarela sin respuesta: los resuelve la conciliación.',
     }),
-    stat('Notificaciones fallidas', 'sum(ticketflow_notifications{status="failed"}) or vector(0)', 6, { thresholds: alertWhenAboveZero }),
+    stat('Notificaciones fallidas', 'sum(ticketflow_notifications{status="failed"}) or vector(0)', 6, {
+      thresholds: alertWhenAboveZero,
+    }),
   ]),
   ...line(8, [
     timeseries(
@@ -133,7 +166,9 @@ const panels = [
       8,
       { unit: 'ops' },
     ),
-    timeseries('Mensajes publicados por tipo', [['sum by (type) (rate(outbox_published_total[1m]))', '{{type}}']], 8, { unit: 'ops' }),
+    timeseries('Mensajes publicados por tipo', [['sum by (type) (rate(outbox_published_total[1m]))', '{{type}}']], 8, {
+      unit: 'ops',
+    }),
     timeseries('Event loop lag p99', [['max by (service) (nodejs_eventloop_lag_p99_seconds)', '{{service}}']], 8, {
       unit: 's',
       description: 'Si sube, algo está bloqueando el hilo principal de Node.',
@@ -155,5 +190,5 @@ const dashboard = {
 }
 
 const out = fileURLToPath(new URL('./dashboards/ticketflow.json', import.meta.url))
-writeFileSync(out, JSON.stringify(dashboard, null, 2) + '\n')
+writeFileSync(out, `${JSON.stringify(dashboard, null, 2)}\n`)
 console.log(`Dashboard generado: ${panels.length} paneles`)

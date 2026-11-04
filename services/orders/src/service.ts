@@ -1,23 +1,23 @@
 import { createHash } from 'node:crypto'
 import {
   AppError,
+  type AuthContext,
   BadRequestError,
   ConflictError,
-  NotFoundError,
   enqueueOutbox,
-  withTransaction,
-  type AuthContext,
+  NotFoundError,
   type Pool,
+  withTransaction,
 } from '@ticketflow/common'
 import { OrderEvents } from './projection'
 import {
   eventRepository,
   idempotencyRepository,
+  type Order,
   orderRepository,
   releaseSeatsOf,
-  seatRepository,
-  type Order,
   type SeatRef,
+  seatRepository,
 } from './repository'
 
 export interface CreateOrderInput {
@@ -38,7 +38,9 @@ const seatLabel = (s: SeatRef) => `${s.sectionId}:${s.row}-${s.number}`
 /** Huella del pedido: misma clave con otro body es un error del cliente, no un reintento. */
 function hashRequest(input: CreateOrderInput) {
   const seats = input.seats.map(seatLabel).sort()
-  return createHash('sha256').update(JSON.stringify({ eventId: input.eventId, seats })).digest('hex')
+  return createHash('sha256')
+    .update(JSON.stringify({ eventId: input.eventId, seats }))
+    .digest('hex')
 }
 
 const canSee = (auth: AuthContext, order: Order) => auth.role === 'admin' || auth.userId === order.userId
@@ -103,7 +105,12 @@ export class OrdersService {
         currency: event.currency ?? 'ARS',
         holdSeconds: this.options.holdSeconds,
       })
-      await seatRepository.hold(tx, seats.map((s) => s.id), id, expiresAt)
+      await seatRepository.hold(
+        tx,
+        seats.map((s) => s.id),
+        id,
+        expiresAt,
+      )
       await orderRepository.insertItems(tx, id, seats)
       const order = (await orderRepository.findById(tx, id))!
 

@@ -1,6 +1,6 @@
 import type { KeyObject } from 'node:crypto'
 import type { FastifyRequest } from 'fastify'
-import { createRemoteJWKSet, errors as joseErrors, jwtVerify, type JWTVerifyGetKey } from 'jose'
+import { createRemoteJWKSet, type JWTVerifyGetKey, errors as joseErrors, jwtVerify } from 'jose'
 import { ForbiddenError, UnauthorizedError } from './errors'
 
 export type Role = 'customer' | 'organizer' | 'admin'

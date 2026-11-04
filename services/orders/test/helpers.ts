@@ -1,7 +1,14 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
+import {
+  createPool,
+  createTokenVerifier,
+  type DomainEvent,
+  type Pool,
+  type Role,
+  runMigrations,
+} from '@ticketflow/common'
 import { SignJWT } from 'jose'
-import { createPool, createTokenVerifier, runMigrations, type DomainEvent, type Pool, type Role } from '@ticketflow/common'
 import { buildApp } from '../src/app'
 import { loadConfig } from '../src/config'
 import { handleDomainEvent } from '../src/projection'
@@ -67,7 +74,9 @@ export interface SeededEvent {
 /** Publica un evento "como lo haría events-service": pasa por el mismo handler que el consumidor. */
 export async function seedEvent(
   pool: Pool,
-  sections: { name?: string; priceCents?: number; rows: number; seatsPerRow: number }[] = [{ rows: 5, seatsPerRow: 10 }],
+  sections: { name?: string; priceCents?: number; rows: number; seatsPerRow: number }[] = [
+    { rows: 5, seatsPerRow: 10 },
+  ],
   startsAt = new Date(Date.now() + 30 * 86_400_000).toISOString(),
 ): Promise<SeededEvent> {
   const event = {

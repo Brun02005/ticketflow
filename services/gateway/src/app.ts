@@ -2,7 +2,7 @@ import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import proxy from '@fastify/http-proxy'
 import rateLimit from '@fastify/rate-limit'
-import { createHttpApp, parseTrustProxy, extractBearerToken, type Redis, type TokenVerifier } from '@ticketflow/common'
+import { createHttpApp, extractBearerToken, parseTrustProxy, type Redis, type TokenVerifier } from '@ticketflow/common'
 import type { GatewayConfig } from './config'
 
 export interface GatewayDeps {
@@ -50,7 +50,14 @@ export async function buildApp(config: GatewayConfig, deps: GatewayDeps) {
   await app.register(helmet)
   await app.register(cors, {
     origin: config.CORS_ORIGINS === '*' ? true : config.CORS_ORIGINS.split(',').map((o) => o.trim()),
-    exposedHeaders: ['x-request-id', 'x-cache', 'idempotent-replayed', 'x-ratelimit-limit', 'x-ratelimit-remaining', 'retry-after'],
+    exposedHeaders: [
+      'x-request-id',
+      'x-cache',
+      'idempotent-replayed',
+      'x-ratelimit-limit',
+      'x-ratelimit-remaining',
+      'retry-after',
+    ],
   })
 
   // Si la request trae token, se valida acá: un token inválido se rechaza sin

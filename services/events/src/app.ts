@@ -1,5 +1,5 @@
 import helmet from '@fastify/helmet'
-import { createHttpApp, registerDocs, type Pool, type Redis, type TokenVerifier } from '@ticketflow/common'
+import { createHttpApp, type Pool, type Redis, registerDocs, type TokenVerifier } from '@ticketflow/common'
 import { EventCache } from './cache'
 import type { EventsConfig } from './config'
 import { eventsRoutes } from './routes'

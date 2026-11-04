@@ -13,10 +13,7 @@ export function createPool(connectionString: string, options: pg.PoolConfig = {}
  * Ejecuta `fn` dentro de una transacción. Hace COMMIT si termina bien
  * y ROLLBACK si lanza, y siempre devuelve el cliente al pool.
  */
-export async function withTransaction<T>(
-  pool: pg.Pool,
-  fn: (client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
+export async function withTransaction<T>(pool: pg.Pool, fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')

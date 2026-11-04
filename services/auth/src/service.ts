@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import {
-  NotFoundError,
-  UnauthorizedError,
   enqueueOutbox,
-  withTransaction,
+  NotFoundError,
   type Pool,
   type Queryable,
+  UnauthorizedError,
+  withTransaction,
 } from '@ticketflow/common'
 import { burnPasswordCheck, hashPassword, verifyPassword } from './password'
-import { refreshTokenRepository, userRepository, type Role, type User } from './repository'
+import { type Role, refreshTokenRepository, type User, userRepository } from './repository'
 import { generateRefreshToken, hashRefreshToken, type TokenIssuer } from './tokens'
 
 export interface TokenPair {
@@ -159,5 +159,4 @@ export class AuthService {
   }
 }
 
-const invalidCredentials = () =>
-  new UnauthorizedError('INVALID_CREDENTIALS', 'Email o contraseña incorrectos')
+const invalidCredentials = () => new UnauthorizedError('INVALID_CREDENTIALS', 'Email o contraseña incorrectos')

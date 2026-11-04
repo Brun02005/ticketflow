@@ -1,7 +1,7 @@
-import { withTransaction, type Pool, type Queryable } from './db'
-import { outboxPublishFailures, outboxPublished } from './metrics'
+import { type Pool, type Queryable, withTransaction } from './db'
+import { outboxPublished, outboxPublishFailures } from './metrics'
 import type { MessagePublisher } from './rabbit'
-import { SpanKind, captureTraceContext, extractTraceContext, withSpan } from './tracing'
+import { captureTraceContext, extractTraceContext, SpanKind, withSpan } from './tracing'
 
 /**
  * Patrón Transactional Outbox.
@@ -116,10 +116,10 @@ export class OutboxRelay {
           published++
         } catch (err) {
           outboxPublishFailures.inc()
-          await tx.query(
-            `UPDATE outbox SET attempts = attempts + 1, last_error = $2 WHERE id = $1`,
-            [row.id, (err as Error).message],
-          )
+          await tx.query(`UPDATE outbox SET attempts = attempts + 1, last_error = $2 WHERE id = $1`, [
+            row.id,
+            (err as Error).message,
+          ])
           this.logger.warn({ err: (err as Error).message, outboxId: row.id }, 'no se pudo publicar, se reintenta')
           // Cortamos el lote para no publicar mensajes posteriores fuera de orden.
           break
@@ -133,9 +133,7 @@ export class OutboxRelay {
     this.stopped = false
     const tick = async () => {
       if (this.stopped) return
-      this.running = this.processBatch().catch((err) =>
-        this.logger.error({ err }, 'error en el relay del outbox'),
-      )
+      this.running = this.processBatch().catch((err) => this.logger.error({ err }, 'error en el relay del outbox'))
       const published = await this.running
       if (this.stopped) return
       // Si el lote vino lleno probablemente hay más pendientes: seguimos sin esperar.

@@ -1,4 +1,4 @@
-import { enqueueOutbox, withTransaction, type Pool } from '@ticketflow/common'
+import { enqueueOutbox, type Pool, withTransaction } from '@ticketflow/common'
 import { OrderEvents } from './projection'
 import { idempotencyRepository, orderRepository, releaseSeatsOf } from './repository'
 

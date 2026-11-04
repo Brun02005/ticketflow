@@ -1,13 +1,13 @@
 import {
-  ConflictError,
-  NotFoundError,
-  enqueueOutbox,
-  withTransaction,
   type AuthContext,
+  ConflictError,
+  enqueueOutbox,
+  NotFoundError,
   type Pool,
   type Queryable,
+  withTransaction,
 } from '@ticketflow/common'
-import { PspError, type PspClient } from './psp-client'
+import { type PspClient, PspError } from './psp-client'
 
 export type PaymentStatus = 'awaiting_payment' | 'processing' | 'succeeded' | 'refund_pending' | 'refunded' | 'voided'
 
@@ -40,7 +40,7 @@ export const PaymentEvents = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const PAYMENT_COLUMNS =`p.id, p.order_id AS "orderId", p.user_id AS "userId", p.event_id AS "eventId",
+const PAYMENT_COLUMNS = `p.id, p.order_id AS "orderId", p.user_id AS "userId", p.event_id AS "eventId",
   p.amount_cents AS "amountCents", p.currency, p.status, p.expires_at AS "expiresAt", p.psp_charge_id AS "pspChargeId"`
 
 const CHARGE_COLUMNS = `c.id, c.payment_id AS "paymentId", c.status, c.card_last4 AS "cardLast4",
@@ -107,9 +107,13 @@ export async function applyChargeResult(db: Queryable, result: ChargeResult, log
   if (charge.status !== 'processing') return // ya aplicado: webhook duplicado o conciliación previa
 
   // Nunca confiar ciegamente en lo que dice el resultado: el monto tiene que coincidir.
-  const mismatch = result.status === 'succeeded' && (result.amount !== payment.amountCents || result.currency !== payment.currency)
+  const mismatch =
+    result.status === 'succeeded' && (result.amount !== payment.amountCents || result.currency !== payment.currency)
   if (mismatch) {
-    logger.error({ reference: result.reference, result, expected: payment }, 'el monto cobrado no coincide con la orden')
+    logger.error(
+      { reference: result.reference, result, expected: payment },
+      'el monto cobrado no coincide con la orden',
+    )
   }
 
   if (result.status === 'succeeded') {
@@ -255,4 +259,7 @@ export class PaymentsService {
 }
 
 const paymentNotFound = () =>
-  new NotFoundError('PAYMENT_NOT_FOUND', 'No hay un pago para esa orden (si la acabás de crear, reintentá en unos segundos)')
+  new NotFoundError(
+    'PAYMENT_NOT_FOUND',
+    'No hay un pago para esa orden (si la acabás de crear, reintentá en unos segundos)',
+  )

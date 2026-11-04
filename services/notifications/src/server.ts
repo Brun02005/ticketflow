@@ -1,19 +1,19 @@
 import { fileURLToPath } from 'node:url'
 import {
-  PeriodicTask,
-  RabbitConsumer,
   createPool,
   createTokenVerifier,
+  PeriodicTask,
+  RabbitConsumer,
   remoteJwks,
   runMigrations,
   startServer,
 } from '@ticketflow/common'
 import { buildApp } from './app'
 import { loadConfig } from './config'
-import { registerBusinessMetrics } from './metrics'
 import { dispatchDue } from './dispatcher'
 import { BINDINGS, handleMessage } from './handlers'
 import { createSmtpMailer } from './mailer'
+import { registerBusinessMetrics } from './metrics'
 
 const config = loadConfig()
 const pool = createPool(config.DATABASE_URL)

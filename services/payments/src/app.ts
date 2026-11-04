@@ -1,5 +1,5 @@
 import helmet from '@fastify/helmet'
-import { createHttpApp, registerDocs, type Pool, type TokenVerifier } from '@ticketflow/common'
+import { createHttpApp, type Pool, registerDocs, type TokenVerifier } from '@ticketflow/common'
 import type { PaymentsConfig } from './config'
 import { PaymentsService } from './payments'
 import { PspClient } from './psp-client'

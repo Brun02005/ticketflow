@@ -43,10 +43,7 @@ export const userRepository = {
   },
 
   async findByEmail(db: Queryable, email: string) {
-    const { rows } = await db.query<User>(
-      `SELECT ${USER_COLUMNS} FROM users WHERE lower(email) = lower($1)`,
-      [email],
-    )
+    const { rows } = await db.query<User>(`SELECT ${USER_COLUMNS} FROM users WHERE lower(email) = lower($1)`, [email])
     return rows[0] ?? null
   },
 
@@ -57,10 +54,7 @@ export const userRepository = {
 }
 
 export const refreshTokenRepository = {
-  async insert(
-    db: Queryable,
-    data: { userId: string; familyId: string; tokenHash: string; expiresAt: Date },
-  ) {
+  async insert(db: Queryable, data: { userId: string; familyId: string; tokenHash: string; expiresAt: Date }) {
     const { rows } = await db.query<{ id: string }>(
       `INSERT INTO refresh_tokens (user_id, family_id, token_hash, expires_at)
        VALUES ($1, $2, $3, $4) RETURNING id`,
@@ -79,16 +73,12 @@ export const refreshTokenRepository = {
   },
 
   async markRotated(db: Queryable, id: string, replacedBy: string) {
-    await db.query(`UPDATE refresh_tokens SET revoked_at = now(), replaced_by = $2 WHERE id = $1`, [
-      id,
-      replacedBy,
-    ])
+    await db.query(`UPDATE refresh_tokens SET revoked_at = now(), replaced_by = $2 WHERE id = $1`, [id, replacedBy])
   },
 
   async revokeFamily(db: Queryable, familyId: string) {
-    await db.query(
-      `UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL`,
-      [familyId],
-    )
+    await db.query(`UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL`, [
+      familyId,
+    ])
   },
 }

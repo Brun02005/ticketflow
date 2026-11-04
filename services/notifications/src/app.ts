@@ -1,14 +1,14 @@
 import helmet from '@fastify/helmet'
 import {
-  NotFoundError,
-  Type,
   createHttpApp,
+  type FastifyPluginAsyncTypebox,
+  NotFoundError,
+  type Pool,
   registerDocs,
   requireAuth,
   requireRole,
-  type FastifyPluginAsyncTypebox,
-  type Pool,
   type TokenVerifier,
+  Type,
 } from '@ticketflow/common'
 import type { NotificationsConfig } from './config'
 import { verifyTicket } from './tickets'
@@ -41,7 +41,9 @@ export async function buildApp(config: NotificationsConfig, deps: NotificationsD
           summary: 'Últimas notificaciones por estado (admin)',
           security: [{ bearerAuth: [] }],
           querystring: Type.Object({
-            status: Type.Union([Type.Literal('pending'), Type.Literal('sent'), Type.Literal('failed')], { default: 'failed' }),
+            status: Type.Union([Type.Literal('pending'), Type.Literal('sent'), Type.Literal('failed')], {
+              default: 'failed',
+            }),
           }),
         },
       },
@@ -86,7 +88,8 @@ export async function buildApp(config: NotificationsConfig, deps: NotificationsD
         schema: {
           tags: ['entradas'],
           summary: 'Validar el código QR de una entrada (personal del evento)',
-          description: 'Verifica la firma del código. No requiere consultar otros servicios: funciona aunque estén caídos.',
+          description:
+            'Verifica la firma del código. No requiere consultar otros servicios: funciona aunque estén caídos.',
           security: [{ bearerAuth: [] }],
           body: Type.Object({ code: Type.String({ minLength: 1, maxLength: 500 }) }),
         },

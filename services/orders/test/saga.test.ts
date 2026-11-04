@@ -1,8 +1,18 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Pool } from '@ticketflow/common'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { handleDomainEvent } from '../src/projection'
-import { domainEvent, makeApp, makeUser, resetData, seedEvent, setupDb, silentLogger, type SeededEvent, type TestUser } from './helpers'
+import {
+  domainEvent,
+  makeApp,
+  makeUser,
+  resetData,
+  type SeededEvent,
+  seedEvent,
+  setupDb,
+  silentLogger,
+  type TestUser,
+} from './helpers'
 
 /** Lado de orders de la saga de compra: qué pasa cuando payments avisa un cobro. */
 
@@ -37,20 +47,30 @@ async function createOrder(numbers = [1, 2]) {
     method: 'POST',
     url: '/orders',
     headers: { authorization: `Bearer ${user.token}`, 'idempotency-key': randomUUID() },
-    payload: { eventId: event.id, seats: numbers.map((number) => ({ sectionId: event.sections[0]!.id, row: 1, number })) },
+    payload: {
+      eventId: event.id,
+      seats: numbers.map((number) => ({ sectionId: event.sections[0]!.id, row: 1, number })),
+    },
   })
   return res.json()
 }
 
 const paymentSucceeded = (orderId: string, messageId?: string) =>
-  handleDomainEvent(pool, domainEvent('payment.succeeded', { orderId, paymentId: randomUUID() }, messageId), silentLogger)
+  handleDomainEvent(
+    pool,
+    domainEvent('payment.succeeded', { orderId, paymentId: randomUUID() }, messageId),
+    silentLogger,
+  )
 
 const orderRow = async (id: string) =>
   (await pool.query(`SELECT status, paid_at, payment_id FROM orders WHERE id = $1`, [id])).rows[0]
 const seatStatuses = async () =>
   (await pool.query(`SELECT status FROM seats ORDER BY number`)).rows.map((r) => r.status)
 const outbox = async () =>
-  (await pool.query(`SELECT type, payload FROM outbox ORDER BY id`)).rows as { type: string; payload: Record<string, unknown> }[]
+  (await pool.query(`SELECT type, payload FROM outbox ORDER BY id`)).rows as {
+    type: string
+    payload: Record<string, unknown>
+  }[]
 
 describe('pago aprobado a tiempo', () => {
   it('la orden queda pagada y los asientos pasan a vendidos', async () => {
@@ -102,12 +122,19 @@ describe('compensación: el pago llega tarde', () => {
 
   it('si la orden fue cancelada, rechaza el pago', async () => {
     const order = await createOrder()
-    await app.inject({ method: 'POST', url: `/orders/${order.id}/cancel`, headers: { authorization: `Bearer ${user.token}` } })
+    await app.inject({
+      method: 'POST',
+      url: `/orders/${order.id}/cancel`,
+      headers: { authorization: `Bearer ${user.token}` },
+    })
 
     await paymentSucceeded(order.id)
 
     expect((await orderRow(order.id)).status).toBe('cancelled')
-    expect((await outbox()).at(-1)).toMatchObject({ type: 'order.payment_rejected', payload: { reason: 'order_cancelled' } })
+    expect((await outbox()).at(-1)).toMatchObject({
+      type: 'order.payment_rejected',
+      payload: { reason: 'order_cancelled' },
+    })
   })
 })
 

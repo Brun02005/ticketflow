@@ -24,7 +24,7 @@ for (const service of readdirSync(join(root, 'services'))) {
     .split(/\r?\n/)
     .filter((line) => /^[A-Z0-9_]+=/.test(line) && !defined.has(line.split('=')[0]))
   if (missing.length > 0) {
-    writeFileSync(target, current.replace(/\n?$/, '\n') + missing.join('\n') + '\n')
+    writeFileSync(target, `${current.replace(/\n?$/, '\n')}${missing.join('\n')}\n`)
     console.log(`✓ services/${service}/.env: agregadas ${missing.map((l) => l.split('=')[0]).join(', ')}`)
   }
 }
@@ -35,14 +35,18 @@ const rootEnv = join(root, '.env')
 let env = existsSync(rootEnv) ? readFileSync(rootEnv, 'utf8') : ''
 const ensure = (name, generate, label) => {
   if (new RegExp(`^${name}=.+`, 'm').test(env)) return
-  env = env.replace(new RegExp(`^${name}=.*\\n?`, 'm'), '') + `${name}=${generate()}\n`
+  env = `${env.replace(new RegExp(`^${name}=.*\\n?`, 'm'), '')}${name}=${generate()}\n`
   console.log(`✓ ${label} generado en .env (para docker compose)`)
 }
 
-ensure('JWT_PRIVATE_KEY', () => {
-  const pem = generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
-  return `"${pem.trim().replace(/\n/g, '\\n')}"`
-}, 'clave JWT')
+ensure(
+  'JWT_PRIVATE_KEY',
+  () => {
+    const pem = generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+    return `"${pem.trim().replace(/\n/g, '\\n')}"`
+  },
+  'clave JWT',
+)
 ensure('PSP_API_KEY', () => `sk_test_${randomBytes(16).toString('hex')}`, 'API key de la pasarela')
 ensure('PSP_WEBHOOK_SECRET', () => `whsec_${randomBytes(24).toString('hex')}`, 'secreto de webhooks')
 ensure('TICKET_SIGNING_SECRET', () => randomBytes(32).toString('base64url'), 'secreto de firma de entradas')

@@ -109,10 +109,11 @@ export const seatRepository = {
   },
 
   async hold(db: Queryable, seatIds: string[], orderId: string, until: Date) {
-    await db.query(
-      `UPDATE seats SET status = 'held', order_id = $2, held_until = $3 WHERE id = ANY($1)`,
-      [seatIds, orderId, until],
-    )
+    await db.query(`UPDATE seats SET status = 'held', order_id = $2, held_until = $3 WHERE id = ANY($1)`, [
+      seatIds,
+      orderId,
+      until,
+    ])
   },
 
   async availability(db: Queryable, eventId: string) {
@@ -249,10 +250,12 @@ export const idempotencyRepository = {
   },
 
   async saveResponse(db: Queryable, userId: string, key: string, statusCode: number, response: unknown) {
-    await db.query(
-      `UPDATE idempotency_keys SET status_code = $3, response = $4 WHERE user_id = $1 AND key = $2`,
-      [userId, key, statusCode, JSON.stringify(response)],
-    )
+    await db.query(`UPDATE idempotency_keys SET status_code = $3, response = $4 WHERE user_id = $1 AND key = $2`, [
+      userId,
+      key,
+      statusCode,
+      JSON.stringify(response),
+    ])
   },
 
   async deleteOlderThan(db: Queryable, hours: number) {

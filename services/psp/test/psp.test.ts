@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { verifyWebhookSignature, WEBHOOK_SIGNATURE_HEADER } from '@ticketflow/common'
 import Fastify, { type FastifyInstance } from 'fastify'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { verifyWebhookSignature, WEBHOOK_SIGNATURE_HEADER } from '@ticketflow/common'
 import { buildApp, loadConfig } from '../src/app'
 
 const SECRET = 'whsec_test_secret'

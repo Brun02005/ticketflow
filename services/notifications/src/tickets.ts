@@ -19,7 +19,8 @@ export interface TicketData {
 
 const PREFIX = 'TF1'
 
-const sign = (secret: string, data: string) => createHmac('sha256', secret).update(`${PREFIX}.${data}`).digest('base64url')
+const sign = (secret: string, data: string) =>
+  createHmac('sha256', secret).update(`${PREFIX}.${data}`).digest('base64url')
 
 export function signTicket(secret: string, ticket: TicketData): string {
   const data = Buffer.from(

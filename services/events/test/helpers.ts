@@ -1,16 +1,16 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { SignJWT } from 'jose'
 import {
   createPool,
   createRedis,
   createTokenVerifier,
-  runMigrations,
-  waitForRedis,
   type Pool,
   type Redis,
   type Role,
+  runMigrations,
+  waitForRedis,
 } from '@ticketflow/common'
+import { SignJWT } from 'jose'
 import { buildApp } from '../src/app'
 import { loadConfig } from '../src/config'
 

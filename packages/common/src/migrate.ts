@@ -15,11 +15,7 @@ interface MigrationLogger {
  * Cada migración corre en su propia transacción y queda registrada en
  * `schema_migrations`, así que es idempotente: correrlo dos veces no hace nada.
  */
-export async function runMigrations(
-  pool: Pool,
-  dir: string,
-  logger: MigrationLogger = console,
-): Promise<string[]> {
+export async function runMigrations(pool: Pool, dir: string, logger: MigrationLogger = console): Promise<string[]> {
   const client = await pool.connect()
   const applied: string[] = []
   try {

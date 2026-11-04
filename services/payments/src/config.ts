@@ -1,10 +1,9 @@
-import { Type, loadEnv, type Static } from '@ticketflow/common'
+import { loadEnv, type Static, Type } from '@ticketflow/common'
 
 export const PaymentsEnv = Type.Object({
-  NODE_ENV: Type.Union(
-    [Type.Literal('development'), Type.Literal('production'), Type.Literal('test')],
-    { default: 'development' },
-  ),
+  NODE_ENV: Type.Union([Type.Literal('development'), Type.Literal('production'), Type.Literal('test')], {
+    default: 'development',
+  }),
   PORT: Type.Integer({ default: 3004 }),
   LOG_LEVEL: Type.String({ default: 'info' }),
   DATABASE_URL: Type.String({ minLength: 1 }),

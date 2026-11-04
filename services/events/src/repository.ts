@@ -73,7 +73,12 @@ async function withSections(db: Queryable, rows: EventRow[]): Promise<EventDto[]
     `SELECT ${SECTION_COLUMNS} FROM sections WHERE event_id = ANY($1) ORDER BY position`,
     [rows.map((r) => r.id)],
   )
-  return rows.map((r) => toDto(r, sections.filter((s) => s.eventId === r.id)))
+  return rows.map((r) =>
+    toDto(
+      r,
+      sections.filter((s) => s.eventId === r.id),
+    ),
+  )
 }
 
 async function insertSections(db: Queryable, eventId: string, sections: SectionInput[]) {

@@ -1,10 +1,9 @@
-import { Type, loadEnv, type Static } from '@ticketflow/common'
+import { loadEnv, type Static, Type } from '@ticketflow/common'
 
 export const GatewayEnv = Type.Object({
-  NODE_ENV: Type.Union(
-    [Type.Literal('development'), Type.Literal('production'), Type.Literal('test')],
-    { default: 'development' },
-  ),
+  NODE_ENV: Type.Union([Type.Literal('development'), Type.Literal('production'), Type.Literal('test')], {
+    default: 'development',
+  }),
   PORT: Type.Integer({ default: 3000 }),
   LOG_LEVEL: Type.String({ default: 'info' }),
   /** Ver parseTrustProxy en @ticketflow/common. */

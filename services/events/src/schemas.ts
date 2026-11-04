@@ -1,13 +1,8 @@
-import { Type, type Static } from '@ticketflow/common'
+import { type Static, Type } from '@ticketflow/common'
 
-const Nullable = <T extends Parameters<typeof Type.Union>[0][number]>(schema: T) =>
-  Type.Union([schema, Type.Null()])
+const Nullable = <T extends Parameters<typeof Type.Union>[0][number]>(schema: T) => Type.Union([schema, Type.Null()])
 
-export const EventStatus = Type.Union([
-  Type.Literal('draft'),
-  Type.Literal('published'),
-  Type.Literal('cancelled'),
-])
+export const EventStatus = Type.Union([Type.Literal('draft'), Type.Literal('published'), Type.Literal('cancelled')])
 export type EventStatus = Static<typeof EventStatus>
 
 const Currency = Type.Union([Type.Literal('ARS'), Type.Literal('USD')])

@@ -1,8 +1,8 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
+import { createRedis, createTokenVerifier, type Redis, waitForRedis } from '@ticketflow/common'
 import Fastify, { type FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createRedis, createTokenVerifier, waitForRedis, type Redis } from '@ticketflow/common'
 import { buildApp } from '../src/app'
 import { loadConfig } from '../src/config'
 

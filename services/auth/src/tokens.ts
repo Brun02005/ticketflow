@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
+import { type AuthContext, createTokenVerifier, type TokenVerifier } from '@ticketflow/common'
 import { SignJWT } from 'jose'
-import { createTokenVerifier, type AuthContext, type TokenVerifier } from '@ticketflow/common'
 import type { SigningKeys } from './keys'
 
 export type AccessTokenClaims = AuthContext

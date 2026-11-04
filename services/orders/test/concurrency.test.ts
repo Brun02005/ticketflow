@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Pool } from '@ticketflow/common'
-import { makeApp, makeUser, resetData, seedEvent, setupDb, type SeededEvent, type TestUser } from './helpers'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { makeApp, makeUser, resetData, type SeededEvent, seedEvent, setupDb, type TestUser } from './helpers'
 
 /**
  * El corazón del proyecto: muchos compradores pidiendo los mismos asientos a
@@ -75,7 +75,11 @@ describe('concurrencia', () => {
   it('100 compradores, pedidos superpuestos en orden aleatorio: sin sobreventa ni deadlocks', async () => {
     event = await seedEvent(pool, [{ rows: 3, seatsPerRow: 10 }])
     const sectionId = event.sections[0]!.id
-    const allSeats = Array.from({ length: 30 }, (_, i) => ({ sectionId, row: Math.floor(i / 10) + 1, number: (i % 10) + 1 }))
+    const allSeats = Array.from({ length: 30 }, (_, i) => ({
+      sectionId,
+      row: Math.floor(i / 10) + 1,
+      number: (i % 10) + 1,
+    }))
     const buyers = await Promise.all(Array.from({ length: 100 }, () => makeUser()))
 
     // Cada uno pide 1 a 4 asientos al azar, en orden aleatorio: el escenario clásico de deadlock
