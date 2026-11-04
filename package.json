@@ -29,10 +29,13 @@
     "migrate": "npm run migrate --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.5",
     "@opentelemetry/context-async-hooks": "^3.0.0",
     "@opentelemetry/core": "^3.0.0",
     "@opentelemetry/sdk-trace": "^3.0.0",

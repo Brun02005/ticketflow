@@ -19,6 +19,8 @@ jobs:
         run: docker compose up -d --wait postgres redis rabbitmq mailpit
 
       - run: npm ci
+      # Falla si hay errores de lint o código sin formatear (no modifica archivos).
+      - run: npx biome ci .
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
@@ -43,9 +45,9 @@ jobs:
       - name: Prueba de carga corta (k6) - falla si hay sobreventa o errores 5xx
         run: node scripts/load/run.mjs
         env:
-          PEAK_VUS: '60'
-          DURATION: '15s'
-          BUYERS: '20'
+          PEAK_VUS: "60"
+          DURATION: "15s"
+          BUYERS: "20"
 
       - name: Logs si algo falló
         if: failure()
