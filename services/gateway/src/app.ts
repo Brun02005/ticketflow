@@ -43,6 +43,7 @@ export async function buildApp(config: GatewayConfig, deps: GatewayDeps) {
       'events-service': () => ping(config.EVENTS_SERVICE_URL),
       'orders-service': () => ping(config.ORDERS_SERVICE_URL),
       'payments-service': () => ping(config.PAYMENTS_SERVICE_URL),
+      'notifications-worker': () => ping(config.NOTIFICATIONS_SERVICE_URL),
     },
   })
 
@@ -90,6 +91,8 @@ export async function buildApp(config: GatewayConfig, deps: GatewayDeps) {
     { prefix: '/payments', url: config.PAYMENTS_SERVICE_URL },
     // Webhooks de la pasarela: públicos, autenticados por firma HMAC en payments-service.
     { prefix: '/webhooks', url: config.PAYMENTS_SERVICE_URL },
+    { prefix: '/notifications', url: config.NOTIFICATIONS_SERVICE_URL },
+    { prefix: '/tickets', url: config.NOTIFICATIONS_SERVICE_URL },
   ]
 
   for (const { prefix, url } of upstreams) {

@@ -208,7 +208,7 @@ export const orderRepository = {
    * no se pisa con una orden que en este momento se está pagando o cancelando.
    */
   async expireDue(db: Queryable, limit: number) {
-    const { rows } = await db.query<{ id: string; eventId: string }>(
+    const { rows } = await db.query<{ id: string; userId: string; eventId: string }>(
       `UPDATE orders o
           SET status = 'expired', updated_at = now()
          FROM (SELECT id FROM orders
@@ -217,7 +217,7 @@ export const orderRepository = {
                 LIMIT $1
                 FOR UPDATE SKIP LOCKED) due
         WHERE o.id = due.id
-        RETURNING o.id, o.event_id AS "eventId"`,
+        RETURNING o.id, o.user_id AS "userId", o.event_id AS "eventId"`,
       [limit],
     )
     return rows

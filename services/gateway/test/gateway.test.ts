@@ -41,7 +41,7 @@ async function fakeUpstream(service: string, log: Received[]) {
 }
 
 let redis: Redis
-const SERVICES = ['auth', 'events', 'orders', 'payments'] as const
+const SERVICES = ['auth', 'events', 'orders', 'payments', 'notifications'] as const
 let upstreams: FastifyInstance[] = []
 let urls: Record<(typeof SERVICES)[number], string>
 let received: Received[]
@@ -56,6 +56,7 @@ const gatewayConfig = (overrides: Record<string, string> = {}) =>
     EVENTS_SERVICE_URL: urls.events,
     ORDERS_SERVICE_URL: urls.orders,
     PAYMENTS_SERVICE_URL: urls.payments,
+    NOTIFICATIONS_SERVICE_URL: urls.notifications,
     ...overrides,
   })
 
@@ -95,6 +96,8 @@ describe('ruteo', () => {
     ['GET', '/availability/abc/sections/def', 'orders'],
     ['POST', '/payments/abc/pay', 'payments'],
     ['POST', '/webhooks/psp', 'payments'],
+    ['POST', '/tickets/verify', 'notifications'],
+    ['GET', '/notifications?status=failed', 'notifications'],
   ] as const)('%s %s → %s-service', async (method, url, service) => {
     const res = await app.inject({ method, url })
 
@@ -249,6 +252,7 @@ describe('fallas de los servicios', () => {
         'events-service': 'ok',
         'orders-service': 'ok',
         'payments-service': 'ok',
+        'notifications-worker': 'ok',
       },
     })
   })

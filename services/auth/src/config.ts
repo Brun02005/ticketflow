@@ -10,6 +10,7 @@ export const AuthEnv = Type.Object({
   /** Ver parseTrustProxy en @ticketflow/common. */
   TRUST_PROXY: Type.Optional(Type.String()),
   DATABASE_URL: Type.String({ minLength: 1 }),
+  RABBITMQ_URL: Type.String({ minLength: 1 }),
   /** Clave privada Ed25519 en PEM (PKCS#8). Obligatoria en producción. */
   JWT_PRIVATE_KEY: Type.Optional(Type.String({ minLength: 1 })),
   JWT_ISSUER: Type.String({ default: 'ticketflow-auth' }),

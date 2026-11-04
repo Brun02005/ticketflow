@@ -136,7 +136,7 @@ export class OrdersService {
       await enqueueOutbox(tx, {
         type: OrderEvents.cancelled,
         aggregateId: id,
-        payload: { orderId: id, eventId: order.eventId, reason: 'user' },
+        payload: { orderId: id, userId: order.userId, eventId: order.eventId, reason: 'user' },
       })
       return { ...order, status: 'cancelled' as const }
     })

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import {
   NotFoundError,
   UnauthorizedError,
+  enqueueOutbox,
   withTransaction,
   type Pool,
   type Queryable,
@@ -51,6 +52,12 @@ export class AuthService {
         role: input.role ?? 'customer',
       })
       const tokens = await this.issueTokens(tx, user, randomUUID())
+      // Otros servicios (notificaciones) necesitan el email: se publica en el mismo commit.
+      await enqueueOutbox(tx, {
+        type: 'user.registered',
+        aggregateId: user.id,
+        payload: { userId: user.id, email: user.email, role: user.role },
+      })
       return { user: toPublicUser(user), tokens }
     })
   }

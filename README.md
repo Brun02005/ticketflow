@@ -20,7 +20,9 @@ flowchart LR
     PAY -- outbox --> MQ
     MQ -- event.* / payment.succeeded --> ORD
     MQ -- order.* --> PAY
-    MQ -.-> NOT[notifications-worker]
+    AUTH -- outbox --> MQ
+    MQ -- user.* / order.* / payment.* --> NOT[notifications-worker]
+    NOT -- SMTP --> MAIL[Mailpit]
     PAY -- cobros / reembolsos --> PSP[psp-simulator<br/>pasarela externa]
     PSP -- webhooks firmados --> GW
     AUTH --- PGA[(Postgres auth)]
@@ -33,6 +35,7 @@ flowchart LR
     GW -. JWKS .-> AUTH
     ORD -. JWKS .-> AUTH
     PAY -. JWKS .-> AUTH
+    NOT --- PGN[(Postgres notifications)]
 ```
 
 | Servicio | Estado | Responsabilidad |
@@ -43,7 +46,7 @@ flowchart LR
 | `orders-service` | ✅ | Inventario de asientos, reservas con vencimiento, cero sobreventa, idempotencia |
 | `payments-service` | ✅ | Cobros, webhooks firmados, conciliación, reembolsos (saga de compra) |
 | `psp-simulator` | ✅ | Pasarela de pagos externa simulada: tarjetas de prueba, webhooks con reintentos, fallas inyectables |
-| `notifications-worker` | 🔜 | Emails con entrada + QR, reintentos con backoff y dead-letter queue |
+| `notifications-worker` | ✅ | Emails transaccionales, entradas con QR firmado, reintentos persistentes con backoff |
 
 ## La saga de compra
 
@@ -82,6 +85,18 @@ sequenceDiagram
 | Se cancela el evento | Las órdenes pendientes se anulan y las pagadas se reembolsan |
 
 ## Decisiones técnicas destacadas
+
+### notifications-worker
+- **Recibir y enviar están desacoplados.** El consumidor de RabbitMQ solo registra la intención de mandar el email (una fila, en la misma transacción que el inbox) y confirma el mensaje. Un despachador aparte envía por SMTP. Si el SMTP está lento o caído, la cola no se frena.
+- **Un hecho, un email.** Cada notificación tiene una clave de deduplicación por hecho de negocio (`tickets:<orderId>`), no por mensaje. Si el mismo hecho llega por dos mensajes distintos (el relay publicó dos veces), igual sale un solo email.
+- **Reintentos persistentes con backoff exponencial y jitter**, guardados en la base: sobreviven a reinicios.
+  - Agotados los intentos, la notificación queda `failed` y un admin la reencola con `POST /notifications/:id/retry`.
+  - Verificado apagando el SMTP: los emails esperan y salen solos cuando vuelve.
+- **Lease estilo SQS:** el despachador reclama filas corriendo su `next_attempt_at` (`FOR UPDATE SKIP LOCKED`, commit) y envía fuera de la transacción. Si muere a mitad de camino, el lease vence y otra réplica la retoma. Un test con 4 réplicas verifica que cada email sale exactamente una vez.
+- **Message-ID determinístico** (derivado del id de la notificación). Es honesto sobre el límite: un email no se puede enviar "exactamente una vez", pero si un reintento lo duplica, los clientes de correo lo reconocen como el mismo.
+- **Entradas con QR firmado con HMAC** (`TF1.<datos>.<firma>`). Se validan sin consultar ninguna base, así el control en la puerta funciona aunque el resto del sistema esté caído. Cambiar un solo byte invalida la firma.
+- **Event-carried state transfer:** los emails se arman con proyecciones locales (usuarios desde `user.registered`, eventos desde `event.published`). Si un dato todavía no llegó, se reintenta más tarde en lugar de llamar a otro servicio.
+- El HTML escapa todo lo que viene de usuarios (un título con `<script>` no inyecta nada en el email).
 
 ### payments-service
 - **Webhooks firmados** con HMAC-SHA256 sobre `timestamp.body crudo` (estilo Stripe).
@@ -195,12 +210,13 @@ npm run smoke        # prueba de punta a punta a través del gateway
 | http://localhost:3003/docs | Swagger de orders-service (modo desarrollo) |
 | http://localhost:3004/docs | Swagger de payments-service (modo desarrollo) |
 | http://localhost:4000/test-cards | Tarjetas de prueba de la pasarela simulada |
+| http://localhost:3005/docs | Swagger de notifications-worker (modo desarrollo) |
 | http://localhost:15672 | Panel de RabbitMQ (guest / guest): exchange `ticketflow.events` |
-| http://localhost:8025 | Bandeja de Mailpit (emails de prueba) |
+| http://localhost:8025 | Bandeja de Mailpit: acá llegan los emails (bienvenida, entradas con QR, rechazos, reembolsos) |
 
 ## Tests
 
-128 tests de integración contra Postgres, Redis y RabbitMQ reales, sin mocks de la infraestructura.
+143 tests de integración contra Postgres, Redis, RabbitMQ y SMTP (Mailpit) reales, sin mocks de la infraestructura.
 - **Concurrencia:** compras simultáneas del mismo asiento, pedidos superpuestos, doble click en pagar, refresh tokens simultáneos, ediciones simultáneas y varias réplicas del relay.
 - **Mensajería:** reintentos y DLQ contra el broker real.
 - **Pagos:** los tests levantan la pasarela simulada y payments-service en puertos reales, así los webhooks firmados viajan por HTTP de verdad.
@@ -218,5 +234,5 @@ El CI corre además el sistema completo en Docker y ejecuta el smoke test.
 - [x] **Fase 2:** events-service (outbox, caché, bloqueo optimista, paginación por cursor) y API gateway
 - [x] **Fase 3:** orders-service: inventario por eventos, reservas con vencimiento, cero sobreventa bajo concurrencia, `Idempotency-Key`, consumidor idempotente con reintentos y DLQ
 - [x] **Fase 4:** payments-service, pasarela simulada y saga de compra con compensación (reembolso de pagos tardíos y de eventos cancelados), conciliación de webhooks perdidos
-- [ ] **Fase 5:** notifications-worker con reintentos, backoff exponencial y DLQ
+- [x] **Fase 5:** notifications-worker: emails transaccionales, entradas con QR firmado, reintentos persistentes con backoff y lease, `user.registered` desde auth
 - [ ] **Fase 6:** observabilidad (OpenTelemetry + Jaeger, Prometheus + Grafana) y test de carga con k6 que demuestre que no hay sobreventa

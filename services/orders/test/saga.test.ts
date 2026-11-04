@@ -121,8 +121,8 @@ describe('cancelación del evento', () => {
 
     const cancellations = (await outbox()).filter((m) => m.type === 'order.cancelled')
     expect(cancellations.map((m) => m.payload).sort((a, b) => Number(a.wasPaid) - Number(b.wasPaid))).toEqual([
-      { orderId: pending.id, eventId: event.id, reason: 'event_cancelled', wasPaid: false },
-      { orderId: paid.id, eventId: event.id, reason: 'event_cancelled', wasPaid: true },
+      { orderId: pending.id, userId: user.id, eventId: event.id, reason: 'event_cancelled', wasPaid: false },
+      { orderId: paid.id, userId: user.id, eventId: event.id, reason: 'event_cancelled', wasPaid: true },
     ])
   })
 })

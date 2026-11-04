@@ -16,11 +16,11 @@ export async function expireOrders(pool: Pool, batchSize = 100): Promise<number>
       tx,
       expired.map((o) => o.id),
     )
-    for (const { id, eventId } of expired) {
+    for (const { id, userId, eventId } of expired) {
       await enqueueOutbox(tx, {
         type: OrderEvents.expired,
         aggregateId: id,
-        payload: { orderId: id, eventId },
+        payload: { orderId: id, userId, eventId },
       })
     }
     return expired.length

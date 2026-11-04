@@ -18,6 +18,7 @@ const makeApp = (overrides: Record<string, string> = {}) =>
       NODE_ENV: 'test',
       LOG_LEVEL: 'silent',
       DATABASE_URL: process.env.TEST_DATABASE_URL,
+      RABBITMQ_URL: 'amqp://unused',
       LOGIN_RATE_LIMIT_MAX: '1000',
       ...overrides,
     }),
@@ -31,7 +32,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  await pool.query('TRUNCATE users, refresh_tokens CASCADE')
+  await pool.query('TRUNCATE users, refresh_tokens, outbox CASCADE')
   app = await makeApp()
 })
 
@@ -65,6 +66,21 @@ describe('registro', () => {
     const { rows } = await pool.query('SELECT password_hash FROM users')
     expect(rows[0].password_hash).toMatch(/^scrypt\$/)
     expect(rows[0].password_hash).not.toContain(USER.password)
+  })
+
+  it('publica user.registered (vía outbox) en el mismo commit que crea la cuenta', async () => {
+    const { user } = (await register(USER)).json()
+    const { rows } = await pool.query('SELECT type, payload FROM outbox')
+
+    expect(rows).toEqual([
+      { type: 'user.registered', payload: { userId: user.id, email: USER.email, role: 'customer' } },
+    ])
+  })
+
+  it('un registro fallido no publica nada', async () => {
+    await register(USER)
+    await register(USER) // email duplicado: rollback
+    expect((await pool.query('SELECT count(*)::int AS n FROM outbox')).rows[0].n).toBe(1)
   })
 
   it('rechaza emails duplicados sin importar mayúsculas', async () => {

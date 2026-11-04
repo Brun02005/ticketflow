@@ -46,8 +46,9 @@ services:
       - "8025:8025" # bandeja de entrada: http://localhost:8025
 
   # ── Servicios de la app (docker compose --profile app up -d --build) ──
-  # Solo el gateway publica un puerto. auth y events quedan en la red interna:
-  # nadie puede llamarlos salteándose el gateway (ni falsificar X-Forwarded-For).
+  # Solo el gateway publica un puerto (y la pasarela simulada, que es "externa").
+  # Los servicios quedan en la red interna: nadie puede llamarlos salteándose el
+  # gateway (ni falsificar X-Forwarded-For).
   auth-service:
     profiles: ["app"]
     build: { context: ., args: { SERVICE: auth } }
@@ -55,6 +56,7 @@ services:
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/auth
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-} # obligatoria: generala con npm run setup
       # Solo el gateway le habla: confiamos en su X-Forwarded-For para el rate limit de login.
       TRUST_PROXY: "true"
@@ -65,6 +67,7 @@ services:
       retries: 20
     depends_on:
       postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
 
   events-service:
     profiles: ["app"]
@@ -137,6 +140,25 @@ services:
       timeout: 3s
       retries: 20
 
+  notifications-worker:
+    profiles: ["app"]
+    build: { context: ., args: { SERVICE: notifications } }
+    environment:
+      NODE_ENV: production
+      PORT: 3005
+      DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/notifications
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      AUTH_JWKS_URL: http://auth-service:3001/.well-known/jwks.json
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      TICKET_SIGNING_SECRET: ${TICKET_SIGNING_SECRET:-}
+    healthcheck: *app-healthcheck
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      mailpit: { condition: service_started }
+      auth-service: { condition: service_healthy }
+
   api-gateway:
     profiles: ["app"]
     build: { context: ., args: { SERVICE: gateway } }
@@ -148,6 +170,7 @@ services:
       EVENTS_SERVICE_URL: http://events-service:3002
       ORDERS_SERVICE_URL: http://orders-service:3003
       PAYMENTS_SERVICE_URL: http://payments-service:3004
+      NOTIFICATIONS_SERVICE_URL: http://notifications-worker:3005
     ports: ["3000:3000"]
     healthcheck: *app-healthcheck
     depends_on:
@@ -155,6 +178,7 @@ services:
       events-service: { condition: service_healthy }
       orders-service: { condition: service_healthy }
       payments-service: { condition: service_healthy }
+      notifications-worker: { condition: service_healthy }
       psp-simulator: { condition: service_healthy }
 
 volumes:

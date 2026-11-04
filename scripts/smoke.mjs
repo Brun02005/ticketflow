@@ -210,6 +210,42 @@ await step('los asientos pagados quedan vendidos y no se pueden volver a comprar
   assert.equal(twice.body.error.code, 'ALREADY_PAID')
 })
 
+const MAILPIT = process.env.MAILPIT_API_URL ?? 'http://localhost:8025'
+const inbox = async (to) => {
+  const res = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}`).then((r) => r.json())
+  return res.messages ?? []
+}
+
+await step('llegan los emails: bienvenida, pago rechazado y entradas con QR (Mailpit)', async () => {
+  const email = customer.user.email
+  const deadline = Date.now() + 20_000
+  let subjects = []
+  while (Date.now() < deadline) {
+    subjects = (await inbox(email)).map((m) => m.Subject)
+    if (subjects.some((s) => s.startsWith('Tus entradas'))) break
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  assert.ok(subjects.includes('Bienvenido a TicketFlow'), `asuntos recibidos: ${subjects.join(' | ')}`)
+  assert.ok(subjects.some((s) => s.startsWith('No pudimos procesar tu pago')), `asuntos: ${subjects.join(' | ')}`)
+  const tickets = (await inbox(email)).find((m) => m.Subject.startsWith('Tus entradas'))
+  assert.ok(tickets, `no llegó el email de entradas (asuntos: ${subjects.join(' | ')})`)
+  const full = await fetch(`${MAILPIT}/api/v1/message/${tickets.ID}`).then((r) => r.json())
+  assert.equal(full.Inline.length, 2, 'un QR por asiento')
+})
+
+await step('el QR de la entrada se valida en la puerta (y uno adulterado no)', async () => {
+  const tickets = (await inbox(customer.user.email)).find((m) => m.Subject.startsWith('Tus entradas'))
+  const full = await fetch(`${MAILPIT}/api/v1/message/${tickets.ID}`).then((r) => r.json())
+  const code = full.Text.match(/TF1\.[\w-]+\.[\w-]+/)[0]
+  const valid = await call('POST', '/tickets/verify', { token: organizer.tokens.accessToken, body: { code } })
+  assert.equal(valid.body.valid, true, JSON.stringify(valid.body))
+  const forged = await call('POST', '/tickets/verify', {
+    token: organizer.tokens.accessToken,
+    body: { code: code.slice(0, -2) + (code.endsWith('AA') ? 'BB' : 'AA') },
+  })
+  assert.equal(forged.body.valid, false)
+})
+
 await step('el refresh token rota y el viejo queda inválido', async () => {
   const refreshed = await call('POST', '/auth/refresh', { body: { refreshToken: organizer.tokens.refreshToken } })
   assert.equal(refreshed.status, 200)

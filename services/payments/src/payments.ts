@@ -131,6 +131,7 @@ export async function applyChargeResult(db: Queryable, result: ChargeResult, log
         paymentId: payment.id,
         orderId: payment.orderId,
         userId: payment.userId,
+        eventId: payment.eventId,
         amountCents: payment.amountCents,
         currency: payment.currency,
         pspChargeId: result.pspChargeId,
@@ -152,7 +153,13 @@ export async function applyChargeResult(db: Queryable, result: ChargeResult, log
   await enqueueOutbox(db, {
     type: PaymentEvents.failed,
     aggregateId: payment.orderId,
-    payload: { paymentId: payment.id, orderId: payment.orderId, userId: payment.userId, reason: result.failureReason },
+    payload: {
+      paymentId: payment.id,
+      orderId: payment.orderId,
+      userId: payment.userId,
+      eventId: payment.eventId,
+      reason: result.failureReason,
+    },
   })
 }
 

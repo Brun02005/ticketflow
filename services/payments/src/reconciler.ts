@@ -96,8 +96,17 @@ export async function dispatchRefunds(
 
 /** La pasarela confirmó el reembolso (webhook refund.succeeded). */
 export async function applyRefundSucceeded(db: Queryable, chargeReference: string, logger: Logger) {
-  const { rows } = await db.query<{ id: string; orderId: string; userId: string; status: string; amountCents: number }>(
-    `SELECT p.id, p.order_id AS "orderId", p.user_id AS "userId", p.status, p.amount_cents AS "amountCents"
+  const { rows } = await db.query<{
+    id: string
+    orderId: string
+    userId: string
+    eventId: string
+    status: string
+    amountCents: number
+    currency: string
+  }>(
+    `SELECT p.id, p.order_id AS "orderId", p.user_id AS "userId", p.event_id AS "eventId", p.status,
+            p.amount_cents AS "amountCents", p.currency
        FROM payments p JOIN charges c ON c.payment_id = p.id
       WHERE c.id::text = $1
       FOR UPDATE OF p`,
@@ -112,6 +121,13 @@ export async function applyRefundSucceeded(db: Queryable, chargeReference: strin
   await enqueueOutbox(db, {
     type: PaymentEvents.refunded,
     aggregateId: payment.orderId,
-    payload: { paymentId: payment.id, orderId: payment.orderId, userId: payment.userId, amountCents: payment.amountCents },
+    payload: {
+      paymentId: payment.id,
+      orderId: payment.orderId,
+      userId: payment.userId,
+      eventId: payment.eventId,
+      amountCents: payment.amountCents,
+      currency: payment.currency,
+    },
   })
 }

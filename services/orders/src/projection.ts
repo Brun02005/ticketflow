@@ -134,24 +134,24 @@ async function applyEventCancelled(tx: PoolClient, eventId: string) {
      ON CONFLICT (id) DO UPDATE SET status = 'cancelled', updated_at = now()`,
     [eventId],
   )
-  const { rows } = await tx.query<{ id: string; previous: string }>(
+  const { rows } = await tx.query<{ id: string; userId: string; previous: string }>(
     `UPDATE orders o SET status = 'cancelled', updated_at = now()
        FROM (SELECT id, status AS previous FROM orders
               WHERE event_id = $1 AND status IN ('pending_payment', 'paid')
               FOR UPDATE) p
       WHERE o.id = p.id
-      RETURNING o.id, p.previous`,
+      RETURNING o.id, o.user_id AS "userId", p.previous`,
     [eventId],
   )
   await releaseSeatsOf(
     tx,
     rows.map((r) => r.id),
   )
-  for (const { id, previous } of rows) {
+  for (const { id, userId, previous } of rows) {
     await enqueueOutbox(tx, {
       type: OrderEvents.cancelled,
       aggregateId: id,
-      payload: { orderId: id, eventId, reason: 'event_cancelled', wasPaid: previous === 'paid' },
+      payload: { orderId: id, userId, eventId, reason: 'event_cancelled', wasPaid: previous === 'paid' },
     })
   }
 }
@@ -205,7 +205,7 @@ async function applyPaymentSucceeded(
     // Venció pero el job todavía no pasó: la vencemos ahora, en la misma transacción.
     await orderRepository.setStatus(tx, orderId, 'expired')
     await releaseSeatsOf(tx, [orderId])
-    await enqueueOutbox(tx, { type: OrderEvents.expired, aggregateId: orderId, payload: { orderId, eventId: order.eventId } })
+    await enqueueOutbox(tx, { type: OrderEvents.expired, aggregateId: orderId, payload: { orderId, userId: order.userId, eventId: order.eventId } })
   }
   logger.warn({ orderId, paymentId, status: order.status }, 'pago tardío rechazado, se reembolsará')
   await enqueueOutbox(tx, {

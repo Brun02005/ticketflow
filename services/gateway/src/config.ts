@@ -14,6 +14,7 @@ export const GatewayEnv = Type.Object({
   EVENTS_SERVICE_URL: Type.String({ minLength: 1 }),
   ORDERS_SERVICE_URL: Type.String({ minLength: 1 }),
   PAYMENTS_SERVICE_URL: Type.String({ minLength: 1 }),
+  NOTIFICATIONS_SERVICE_URL: Type.String({ minLength: 1 }),
   /** Por defecto: <AUTH_SERVICE_URL>/.well-known/jwks.json */
   AUTH_JWKS_URL: Type.Optional(Type.String({ minLength: 1 })),
   JWT_ISSUER: Type.String({ default: 'ticketflow-auth' }),

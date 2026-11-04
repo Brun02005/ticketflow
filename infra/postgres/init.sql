@@ -9,3 +9,5 @@ CREATE DATABASE orders;
 CREATE DATABASE orders_test;
 CREATE DATABASE payments;
 CREATE DATABASE payments_test;
+CREATE DATABASE notifications;
+CREATE DATABASE notifications_test;
