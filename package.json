@@ -1,0 +1,41 @@
+{
+  "name": "ticketflow",
+  "private": true,
+  "description": "Plataforma de venta de entradas con microservicios en Node.js",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "infra:up": "docker compose up -d --wait postgres redis rabbitmq mailpit",
+    "infra:down": "docker compose --profile app down",
+    "dev": "concurrently -k -n auth,events,orders,payments,psp,gateway -c blue,magenta,yellow,cyan,gray,green \"npm:dev:auth\" \"npm:dev:events\" \"npm:dev:orders\" \"npm:dev:payments\" \"npm:dev:psp\" \"npm:dev:gateway\"",
+    "dev:auth": "npm run dev -w @ticketflow/auth-service",
+    "dev:events": "npm run dev -w @ticketflow/events-service",
+    "dev:orders": "npm run dev -w @ticketflow/orders-service",
+    "dev:payments": "npm run dev -w @ticketflow/payments-service",
+    "dev:psp": "npm run dev -w @ticketflow/psp-simulator",
+    "dev:gateway": "npm run dev -w @ticketflow/api-gateway",
+    "app:up": "docker compose --profile app up -d --build --wait",
+    "smoke": "node scripts/smoke.mjs",
+    "migrate": "npm run migrate --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "concurrently": "^10.0.6",
+    "tsup": "^8.5.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

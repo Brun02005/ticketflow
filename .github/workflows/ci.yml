@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Levantar infraestructura (mismo compose que en local)
+        run: docker compose up -d --wait postgres redis rabbitmq
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Generar clave JWT y levantar todo el sistema en Docker
+        run: |
+          node scripts/setup.mjs
+          docker compose --profile app up -d --build --wait
+
+      - name: Smoke test de punta a punta a través del gateway
+        run: node scripts/smoke.mjs
+
+      - name: Logs si algo falló
+        if: failure()
+        run: docker compose --profile app logs --tail=100

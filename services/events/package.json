@@ -1,0 +1,17 @@
+{
+  "name": "@ticketflow/events-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Catálogo de eventos y sectores; publica eventos de dominio vía outbox",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
+    "migrate": "tsx --env-file-if-exists=.env src/migrate.ts",
+    "build": "tsup",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@ticketflow/common": "0.1.0",
+    "ioredis": "^6.0.0"
+  }
+}

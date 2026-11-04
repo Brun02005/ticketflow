@@ -1,0 +1,161 @@
+name: ticketflow
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ticketflow
+      POSTGRES_PASSWORD: ticketflow
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672" # panel: http://localhost:15672 (guest/guest)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # bandeja de entrada: http://localhost:8025
+
+  # ── Servicios de la app (docker compose --profile app up -d --build) ──
+  # Solo el gateway publica un puerto. auth y events quedan en la red interna:
+  # nadie puede llamarlos salteándose el gateway (ni falsificar X-Forwarded-For).
+  auth-service:
+    profiles: ["app"]
+    build: { context: ., args: { SERVICE: auth } }
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/auth
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-} # obligatoria: generala con npm run setup
+      # Solo el gateway le habla: confiamos en su X-Forwarded-For para el rate limit de login.
+      TRUST_PROXY: "true"
+    healthcheck: &app-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$$PORT/health/ready || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  events-service:
+    profiles: ["app"]
+    build: { context: ., args: { SERVICE: events } }
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/events
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      AUTH_JWKS_URL: http://auth-service:3001/.well-known/jwks.json
+    healthcheck: *app-healthcheck
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      auth-service: { condition: service_healthy }
+
+  orders-service:
+    profiles: ["app"]
+    build: { context: ., args: { SERVICE: orders } }
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/orders
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      AUTH_JWKS_URL: http://auth-service:3001/.well-known/jwks.json
+      HOLD_TTL_SECONDS: ${HOLD_TTL_SECONDS:-600}
+    healthcheck: *app-healthcheck
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      auth-service: { condition: service_healthy }
+
+  payments-service:
+    profiles: ["app"]
+    build: { context: ., args: { SERVICE: payments } }
+    environment:
+      NODE_ENV: production
+      PORT: 3004
+      DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/payments
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      AUTH_JWKS_URL: http://auth-service:3001/.well-known/jwks.json
+      PSP_URL: http://psp-simulator:4000
+      PSP_API_KEY: ${PSP_API_KEY:-sk_test_ticketflow}
+      PSP_WEBHOOK_SECRET: ${PSP_WEBHOOK_SECRET:-whsec_dev_ticketflow}
+      # La pasarela entra por el gateway, como cualquier tráfico externo.
+      PUBLIC_WEBHOOK_URL: http://api-gateway:3000/webhooks/psp
+      RECONCILE_AFTER_SECONDS: ${RECONCILE_AFTER_SECONDS:-60}
+    healthcheck: *app-healthcheck
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      auth-service: { condition: service_healthy }
+
+  # Servicio "externo": simula Stripe/Mercado Pago. Publica su puerto para ver
+  # los cobros (GET /v1/charges con la API key) y las tarjetas de prueba (GET /test-cards).
+  psp-simulator:
+    profiles: ["app"]
+    build: { context: ., args: { SERVICE: psp } }
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      PSP_API_KEY: ${PSP_API_KEY:-sk_test_ticketflow}
+      PSP_WEBHOOK_SECRET: ${PSP_WEBHOOK_SECRET:-whsec_dev_ticketflow}
+      PSP_ERROR_RATE: ${PSP_ERROR_RATE:-0}
+    ports: ["4000:4000"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api-gateway:
+    profiles: ["app"]
+    build: { context: ., args: { SERVICE: gateway } }
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      REDIS_URL: redis://redis:6379/0
+      AUTH_SERVICE_URL: http://auth-service:3001
+      EVENTS_SERVICE_URL: http://events-service:3002
+      ORDERS_SERVICE_URL: http://orders-service:3003
+      PAYMENTS_SERVICE_URL: http://payments-service:3004
+    ports: ["3000:3000"]
+    healthcheck: *app-healthcheck
+    depends_on:
+      auth-service: { condition: service_healthy }
+      events-service: { condition: service_healthy }
+      orders-service: { condition: service_healthy }
+      payments-service: { condition: service_healthy }
+      psp-simulator: { condition: service_healthy }
+
+volumes:
+  pgdata:
